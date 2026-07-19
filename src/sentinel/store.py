@@ -149,6 +149,35 @@ class IncidentStore:
             self._conn.commit()
             return cursor.rowcount == 1
 
+    def mark_quarantined(self, incident_id: int) -> bool:
+        """Transition an incident from received to quarantined, appending audit row."""
+        return self._set_status_with_audit(incident_id, STATUS_QUARANTINED, "quarantine", "success")
+
+    def _set_status_with_audit(
+        self, incident_id: int, status: str, action_type: str, action_status: str
+    ) -> bool:
+        with self._lock:
+            self._conn.execute("BEGIN")
+            try:
+                cursor = self._conn.execute(
+                    """UPDATE incidents SET status=?, updated_at=CURRENT_TIMESTAMP
+                       WHERE id=?""",
+                    (status, incident_id),
+                )
+                updated = cursor.rowcount == 1
+                if updated:
+                    self._conn.execute(
+                        """INSERT INTO actions
+                           (incident_id, action_type, status)
+                           VALUES (?, ?, ?)""",
+                        (incident_id, action_type, action_status),
+                    )
+                self._conn.commit()
+                return updated
+            except BaseException:
+                self._conn.rollback()
+                raise
+
     def release(self, incident_id: int) -> bool:
         """Release a quarantined incident, appending an immutable audit row."""
         with self._lock:

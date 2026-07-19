@@ -17,7 +17,11 @@ REQUIRED_LABELS = frozenset({"agent_id", "credential_id"})
 
 @dataclass(frozen=True, slots=True)
 class Incident:
-    """Validated SigNoz alert turned into an actionable incident."""
+    """Validated SigNoz alert turned into an actionable incident.
+
+    `id` and `store_status` are set by the IncidentStore when hydrating from DB;
+    freshly parsed incidents have id=0 and store_status="".
+    """
 
     alertname: str
     status: str
@@ -27,6 +31,8 @@ class Incident:
     severity: str = ""
     idempotency_key: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
+    id: int = 0
+    store_status: str = ""
 
     def needs_quarantine(self) -> bool:
         """Return True if this incident should trigger quarantine."""
