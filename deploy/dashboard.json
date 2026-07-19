@@ -1,95 +1,80 @@
 {
-  "version": 1,
   "title": "Sentinel — Runaway Agent Detection",
-  "description": "Real-time monitoring of agent tool-call patterns, quarantines, and Sentinel circuit-breaker metrics. Import into SigNoz via Install API.",
-  "panels": [
+  "description": "Closed-loop agent runaway detection: quarantine events, release events, and credential-hash flow from the Sentinel service exported via OTLP.",
+  "tags": ["sentinel", "agent", "security", "traces"],
+  "variables": {},
+  "version": "v5",
+  "layout": [
+    {"h": 4, "i": "score-alerts", "moved": false, "static": false, "w": 4, "x": 0, "y": 0},
+    {"h": 4, "i": "score-quar", "moved": false, "static": false, "w": 4, "x": 4, "y": 0},
+    {"h": 4, "i": "score-rel", "moved": false, "static": false, "w": 4, "x": 8, "y": 0},
+    {"h": 6, "i": "graph-quar", "moved": false, "static": false, "w": 12, "x": 0, "y": 4}
+  ],
+  "panelMap": {},
+  "widgets": [
     {
-      "id": "tool-calls-per-min",
-      "title": "Tool Calls / min by Agent",
-      "type": "timeseries",
-      "description": "Rate of MCP tool calls per agent (count per 60s). Spikes indicate potential runaway loops.",
+      "id": "score-alerts",
+      "title": "Total Alerts Received",
+      "panelTypes": "value",
+      "description": "Count of sentinel.alert.received spans",
       "query": {
-        "promql": "sum by (agent_id) (rate(sentinel_tool_calls_total[1m]))",
-        "legend": "{{ agent_id }}"
+        "queryType": "clickhouse_sql",
+        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.alert.received' AND timestamp >= now() - INTERVAL 1 HOUR"
       },
-      "unit": "calls/min",
-      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6}
+      "selectedTracesFields": [],
+      "selectedLogFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "contextLinks": {"linksData": []}
     },
     {
-      "id": "repeated-fingerprints",
-      "title": "Repeated Call Fingerprints",
-      "type": "table",
-      "description": "Top (tool, args_hash) pairs sorted by repetition count. Values approaching 8 may trigger quarantine.",
+      "id": "score-quar",
+      "title": "Quarantines",
+      "panelTypes": "value",
+      "description": "Count of sentinel.agent.quarantined spans",
       "query": {
-        "promql": "topk(10, sentinel_tool_repetition_count)",
-        "legend": "{{ tool }} / {{ args_hash_short }}"
+        "queryType": "clickhouse_sql",
+        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.agent.quarantined' AND timestamp >= now() - INTERVAL 1 HOUR"
       },
-      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 6}
+      "selectedTracesFields": [],
+      "selectedLogFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "contextLinks": {"linksData": []}
     },
     {
-      "id": "quarantine-count",
-      "title": "Quarantine Count",
-      "type": "stat",
-      "description": "Number of credentials currently in quarantine state (status = quarantined).",
+      "id": "score-rel",
+      "title": "Releases",
+      "panelTypes": "value",
+      "description": "Count of sentinel.agent.released spans",
       "query": {
-        "promql": "sum(sentinel_quarantine_active)",
-        "legend": "quarantined agents"
+        "queryType": "clickhouse_sql",
+        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.agent.released' AND timestamp >= now() - INTERVAL 1 HOUR"
       },
-      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 3}
+      "selectedTracesFields": [],
+      "selectedLogFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "contextLinks": {"linksData": []}
     },
     {
-      "id": "quarantine-total",
-      "title": "Total Quarantine Actions",
-      "type": "stat",
-      "description": "Cumulative number of quarantine actions executed (including repeats).",
+      "id": "graph-quar",
+      "title": "Quarantine Events Over Time",
+      "panelTypes": "graph",
+      "description": "sentinel.agent.quarantined spans per minute",
       "query": {
-        "promql": "sum(increase(sentinel_quarantine_total[1h]))"
+        "queryType": "clickhouse_sql",
+        "chQuery": "SELECT toStartOfMinute(timestamp) as t, count() as q FROM signoz_spans WHERE name = 'sentinel.agent.quarantined' AND timestamp >= now() - INTERVAL 6 HOUR GROUP BY t ORDER BY t"
       },
-      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 3}
-    },
-    {
-      "id": "alert-latency",
-      "title": "Alert-to-Action Latency (p99)",
-      "type": "timeseries",
-      "description": "Latency from webhook receipt to quarantine action completion. P99 across recent window.",
-      "query": {
-        "promql": "histogram_quantile(0.99, sum(rate(sentinel_alert_latency_bucket[5m])) by (le))",
-        "legend": "p99"
-      },
-      "unit": "seconds",
-      "gridPos": {"x": 0, "y": 6, "w": 12, "h": 6}
-    },
-    {
-      "id": "quarantined-agents",
-      "title": "Currently Quarantined Agents",
-      "type": "table",
-      "description": "List of agent IDs currently under quarantine, with incident IDs and timestamps.",
-      "query": {
-        "promql": "sentinel_quarantine_active > 0",
-        "legend": "{{ agent_id }}"
-      },
-      "gridPos": {"x": 12, "y": 6, "w": 12, "h": 6}
-    },
-    {
-      "id": "idempotency-keys",
-      "title": "Idempotency Key Hit Rate",
-      "type": "timeseries",
-      "description": "Shows duplicate vs new webhook requests. High duplicate rate means multiple alerts firing for same incident.",
-      "query": {
-        "promql": "sum by (type) (rate(sentinel_alerts_idempotency_total[5m]))",
-        "legend": "{{ type }}"
-      },
-      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 6}
-    },
-    {
-      "id": "dry-run-ratio",
-      "title": "Dry-Run / Live Quarantine Ratio",
-      "type": "pie",
-      "description": "Share of quarantine actions that were dry-run (no real revocation) vs live revocation.",
-      "query": {
-        "promql": "sum by (dry_run) (sentinel_quarantine_actions_total)"
-      },
-      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 6}
+      "selectedTracesFields": [],
+      "selectedLogFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "contextLinks": {"linksData": []}
     }
   ]
 }
