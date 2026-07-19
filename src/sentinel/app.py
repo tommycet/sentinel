@@ -19,6 +19,7 @@ from .auth import verify_webhook
 from .model import Incident, parse_alert
 from .revoker import get_revoker
 from .store import IncidentStore
+from .telemetry import export_span
 
 # Maximum request body size: 64 KiB
 MAX_BODY_BYTES = 64 * 1024
@@ -186,6 +187,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self._send_json(401, {"status": "error", "message": "Invalid or expired signature"})
             return
 
+        t_start = time.time()
         # Parse alert
         try:
             incident = parse_alert(body)
@@ -237,6 +239,19 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         if success:
             # Transition incident to quarantined state
             store.mark_quarantined(claimed_incident.id)
+            export_span(  # F6: emit telemetry (best-effort)
+                "sentinel.agent.quarantined",
+                {
+                    "agent.id": claimed_incident.agent_id,
+                    "credential.id": claimed_incident.credential_id,
+                    "alert.name": claimed_incident.alertname,
+                    "sentinel.action": action,
+                    "sentinel.dry_run": getattr(self.server, "dry_run", True),
+                    "sentinel.incident.id": claimed_incident.id,
+                    "sentinel.latency_ms": int((time.time() - t_start) * 1000),
+                },
+                start_time=t_start,
+            )
             self._send_json(
                 200,
                 {
@@ -249,6 +264,20 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             )
         else:
             # F16: revoker failure → 502, not 200
+            export_span(  # F6: emit telemetry (best-effort)
+                "sentinel.agent.quarantined",
+                {
+                    "agent.id": claimed_incident.agent_id,
+                    "credential.id": claimed_incident.credential_id,
+                    "alert.name": claimed_incident.alertname,
+                    "sentinel.action": action,
+                    "sentinel.failure": True,
+                    "sentinel.incident.id": claimed_incident.id,
+                    "sentinel.latency_ms": int((time.time() - t_start) * 1000),
+                },
+                start_time=t_start,
+                status_code=2,
+            )
             self._send_json(
                 502,
                 {
@@ -302,6 +331,17 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         if result.get("success", False):
             # F5: commit the release
             store.release_ok(incident_id)
+            export_span(  # F6: emit telemetry (best-effort)
+                "sentinel.agent.released",
+                {
+                    "agent.id": incident.agent_id,
+                    "credential.id": incident.credential_id,
+                    "alert.name": incident.alertname,
+                    "sentinel.action": "released",
+                    "sentinel.incident.id": incident_id,
+                },
+                start_time=time.time(),
+            )
             self._send_json(
                 200,
                 {
@@ -315,6 +355,19 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             # F5b: revert store state, record failure
             store.release_failed(
                 incident_id, result.get("message", "Release failed")
+            )
+            export_span(  # F6: emit telemetry (best-effort)
+                "sentinel.agent.released",
+                {
+                    "agent.id": incident.agent_id,
+                    "credential.id": incident.credential_id,
+                    "alert.name": incident.alertname,
+                    "sentinel.action": "release_failed",
+                    "sentinel.failure": True,
+                    "sentinel.incident.id": incident_id,
+                },
+                start_time=time.time(),
+                status_code=2,
             )
             self._send_json(
                 502,

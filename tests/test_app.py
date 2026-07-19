@@ -450,6 +450,38 @@ class TestAppService(unittest.TestCase):
         finally:
             self._stop_server()
 
+    # -- F6: telemetry wired through handlers ------------------------------
+
+    def test_telemetry_invoked_on_alert(self):
+        """F6: app's reference to telemetry.export_span must be called on alert path."""
+        import sentinel.app as app_module
+        original = app_module.export_span
+        calls = []
+
+        def tracking_export(name, attributes, start_time, end_time=None, status_code=1):
+            calls.append(name)
+            return True  # Don't hit the network.
+
+        app_module.export_span = tracking_export
+
+        self._start_server(dry_run=True)
+        try:
+            body = json.dumps({
+                "status": "firing",
+                "alertname": "TelTest",
+                "startsAt": "2026-07-19T12:00:00Z",
+                "labels": {"agent_id": "agent-tel", "credential_id": "cred-tel"},
+            }).encode()
+            hdrs = _headers(body)
+            status, data, _ = self._request("POST", "/alerts", body, hdrs)
+            self.assertEqual(status, 200)
+            self.assertEqual(data.get("status"), "success")
+            self.assertIn("sentinel.agent.quarantined", calls,
+                          f"export_span not invoked; calls={calls}")
+        finally:
+            app_module.export_span = original
+            self._stop_server()
+
 
 if __name__ == "__main__":
     unittest.main()
