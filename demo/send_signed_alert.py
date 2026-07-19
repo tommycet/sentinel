@@ -109,5 +109,6 @@ if __name__ == "__main__":
     url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8090/alerts"
     secret = sys.argv[2] if len(sys.argv) > 2 else "dev-secret"
     code, body = send_alert(url, secret)
-    print(f"Status: {code}")
-    print(json.dumps(body, indent=2))
+    # Machine-readable: only JSON when piped.
+    result = {"status_code": code, "body": body}
+    sys.stdout.write(json.dumps(result))
