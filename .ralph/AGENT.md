@@ -1,158 +1,78 @@
-# Agent Build Instructions
+# AGENT.md — Sentinel Build & Test Commands
 
-## Project Setup
+## Build
 ```bash
-# Install dependencies (example for Node.js project)
-npm install
-
-# Or for Python project
-pip install -r requirements.txt
-
-# Or for Rust project  
-cargo build
+# Install in dev mode
+cd /root/signoz-sentinel
+pip install -e .
 ```
 
-## Running Tests
+## Test
 ```bash
-# Node.js
-npm test
+# Run all tests
+python -m unittest discover -s tests -v
 
-# Python
-pytest
+# Run specific test file
+python -m unittest tests.test_model -v
+python -m unittest tests.test_auth -v
+python -m unittest tests.test_store -v
+python -m unittest tests.test_revoker -v
+python -m unittest tests.test_app -v
+python -m unittest tests.test_telemetry -v
 
-# Rust
-cargo test
+# Lint check (no external linter - just compile check)
+python -m compileall src/
 ```
 
-## Build Commands
+## Build & Run
 ```bash
-# Production build
-npm run build
-# or
-cargo build --release
+# Run Sentinel directly (from source)
+sentinel --port 8090 --dry-run --secret test-secret
+
+# Or via Python module
+python -m sentinel.app --port 8090 --dry-run
 ```
 
-## Development Server
+## Docker
 ```bash
-# Start development server
-npm run dev
-# or
-cargo run
+# Build
+docker build -t sentinel:latest -f deploy/sentinel.Dockerfile .
+
+# Run (for testing without Foundry)
+docker run -d \
+  --name sentinel \
+  -p 8090:8090 \
+  -e SENTINEL_WEBHOOK_SECRET=test-secret \
+  -e SENTINEL_DRY_RUN=true \
+  sentinel:latest
 ```
 
-## Key Learnings
-- Update this section when you learn new build optimizations
-- Document any gotchas or special setup requirements
-- Keep track of the fastest test/build cycle
+## Foundry Deployment
+```bash
+# Validate casting
+foundryctl gauge -f casting.yaml
 
-## Feature Development Quality Standards
+# Deploy full stack
+foundryctl cast -f casting.yaml
 
-**CRITICAL**: All new features MUST meet the following mandatory requirements before being considered complete.
+# Verify
+curl -fsS http://localhost:8090/livez
+```
 
-### Testing Requirements
+## Git Workflow
+```bash
+# Commit after every task
+git add -A
+git commit -m "type(scope): description"
 
-- **Minimum Coverage**: 85% code coverage ratio required for all new code
-- **Test Pass Rate**: 100% - all tests must pass, no exceptions
-- **Test Types Required**:
-  - Unit tests for all business logic and services
-  - Integration tests for API endpoints or main functionality
-  - End-to-end tests for critical user workflows
-- **Coverage Validation**: Run coverage reports before marking features complete:
-  ```bash
-  # Examples by language/framework
-  npm run test:coverage
-  pytest --cov=src tests/ --cov-report=term-missing
-  cargo tarpaulin --out Html
-  ```
-- **Test Quality**: Tests must validate behavior, not just achieve coverage metrics
-- **Test Documentation**: Complex test scenarios must include comments explaining the test strategy
+# Push (if remote configured)
+git push origin main
+```
 
-### Git Workflow Requirements
-
-Before moving to the next feature, ALL changes must be:
-
-1. **Committed with Clear Messages**:
-   ```bash
-   git add .
-   git commit -m "feat(module): descriptive message following conventional commits"
-   ```
-   - Use conventional commit format: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, etc.
-   - Include scope when applicable: `feat(api):`, `fix(ui):`, `test(auth):`
-   - Write descriptive messages that explain WHAT changed and WHY
-
-2. **Pushed to Remote Repository**:
-   ```bash
-   git push origin <branch-name>
-   ```
-   - Never leave completed features uncommitted
-   - Push regularly to maintain backup and enable collaboration
-   - Ensure CI/CD pipelines pass before considering feature complete
-
-3. **Branch Hygiene**:
-   - Work on feature branches, never directly on `main`
-   - Branch naming convention: `feature/<feature-name>`, `fix/<issue-name>`, `docs/<doc-update>`
-   - Create pull requests for all significant changes
-
-4. **Ralph Integration**:
-   - Update .ralph/fix_plan.md with new tasks before starting work
-   - Mark items complete in .ralph/fix_plan.md upon completion
-   - Update .ralph/PROMPT.md if development patterns change
-   - Test features work within Ralph's autonomous loop
-
-### Documentation Requirements
-
-**ALL implementation documentation MUST remain synchronized with the codebase**:
-
-1. **Code Documentation**:
-   - Language-appropriate documentation (JSDoc, docstrings, etc.)
-   - Update inline comments when implementation changes
-   - Remove outdated comments immediately
-
-2. **Implementation Documentation**:
-   - Update relevant sections in this AGENT.md file
-   - Keep build and test commands current
-   - Update configuration examples when defaults change
-   - Document breaking changes prominently
-
-3. **README Updates**:
-   - Keep feature lists current
-   - Update setup instructions when dependencies change
-   - Maintain accurate command examples
-   - Update version compatibility information
-
-4. **AGENT.md Maintenance**:
-   - Add new build patterns to relevant sections
-   - Update "Key Learnings" with new insights
-   - Keep command examples accurate and tested
-   - Document new testing patterns or quality gates
-
-### Feature Completion Checklist
-
-Before marking ANY feature as complete, verify:
-
-- [ ] All tests pass with appropriate framework command
-- [ ] Code coverage meets 85% minimum threshold
-- [ ] Coverage report reviewed for meaningful test quality
-- [ ] Code formatted according to project standards
-- [ ] Type checking passes (if applicable)
-- [ ] All changes committed with conventional commit messages
-- [ ] All commits pushed to remote repository
-- [ ] .ralph/fix_plan.md task marked as complete
-- [ ] Implementation documentation updated
-- [ ] Inline code comments updated or added
-- [ ] .ralph/AGENT.md updated (if new patterns introduced)
-- [ ] Breaking changes documented
-- [ ] Features tested within Ralph loop (if applicable)
-- [ ] CI/CD pipeline passes
-
-### Rationale
-
-These standards ensure:
-- **Quality**: High test coverage and pass rates prevent regressions
-- **Traceability**: Git commits and .ralph/fix_plan.md provide clear history of changes
-- **Maintainability**: Current documentation reduces onboarding time and prevents knowledge loss
-- **Collaboration**: Pushed changes enable team visibility and code review
-- **Reliability**: Consistent quality gates maintain production stability
-- **Automation**: Ralph integration ensures continuous development practices
-
-**Enforcement**: AI agents should automatically apply these standards to all feature development tasks without requiring explicit instruction for each task.
+## Quality Standards
+- **TDD first.** Write the failing test BEFORE the implementation code.
+- **Stdlib only.** No FastAPI, Flask, Requests, Pydantic, pytest unless explicitly allowed.
+- **C@n. Read coverage via Python's built-in coverage tools.** Target is not a specific percentage but every edge case in the spec.
+- **No secrets in code.** Use environment variables for all secrets.
+- **Commit early, commit often.** After every task.
+- **Dry-run default.** Sentinel MUST default to safe mode.
