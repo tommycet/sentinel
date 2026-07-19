@@ -4,6 +4,7 @@ import hmac
 import http.client
 import json
 import os
+import socket
 import threading
 import time
 import unittest
@@ -291,6 +292,161 @@ class TestAppService(unittest.TestCase):
                 headers=release_hdrs)
             self.assertEqual(status, 400)
             self.assertEqual(data.get("status"), "error")
+        finally:
+            self._stop_server()
+
+    # -- F2: replay protection — same (timestamp, signature, body) rejected ----
+
+    def test_replay_same_signature_rejected(self):
+        """F2: replaying the SAME headers (ts+sig) must 401, not 200 duplicate."""
+        self._start_server(dry_run=True)
+        try:
+            body = json.dumps({
+                "status": "firing",
+                "alertname": "ReplayAlert",
+                "startsAt": "2026-07-19T12:00:00Z",
+                "labels": {"agent_id": "agent-rep", "credential_id": "cred-rep"},
+            }).encode()
+            hdrs = _headers(body)  # same ts + sig on both calls
+
+            status1, data1, _ = self._request("POST", "/alerts", body, hdrs)
+            self.assertEqual(status1, 200)
+            self.assertEqual(data1.get("status"), "success")
+
+            # Same headers → same replay_key → record_signature returns False → 401.
+            status2, data2, _ = self._request("POST", "/alerts", body, hdrs)
+            self.assertEqual(status2, 401)
+            self.assertEqual(data2.get("status"), "error")
+        finally:
+            self._stop_server()
+
+    # -- F16: 502 on revoker failure ----------------------------------------
+
+    def test_revoker_failure_returns_502(self):
+        """F16: revoker.quarantine success:False → 502 (not 200), status=error."""
+        self._start_server(dry_run=True)
+        try:
+            # Replace revoker.quarantine with a failing stub.
+            self._server.revoker.quarantine = lambda cred_id, **kw: {
+                "success": False,
+                "action": "quarantine",
+                "message": "upstream down",
+            }
+            body = json.dumps({
+                "status": "firing",
+                "alertname": "QuarantineFail",
+                "startsAt": "2026-07-19T12:00:00Z",
+                "labels": {"agent_id": "agent-qf", "credential_id": "cred-qf"},
+            }).encode()
+            hdrs = _headers(body)
+            status, data, _ = self._request("POST", "/alerts", body, hdrs)
+            self.assertEqual(status, 502)
+            self.assertEqual(data.get("status"), "error")
+        finally:
+            self._stop_server()
+
+    # -- F1: 411 on missing Content-Length ----------------------------------
+
+    def test_missing_content_length_returns_411(self):
+        """F1: POST /alerts with no Content-Length → 411."""
+        self._start_server()
+        try:
+            body = json.dumps({
+                "status": "firing",
+                "alertname": "NoCL",
+                "startsAt": "2026-07-19T12:00:00Z",
+                "labels": {"agent_id": "a", "credential_id": "c"},
+            }).encode()
+            ts = str(int(time.time()))
+            sig = _sign(ts, body, SECRET)
+            # Raw socket: omit Content-Length entirely. http.client would add it.
+            req = (
+                f"POST /alerts HTTP/1.1\r\n"
+                f"Host: 127.0.0.1:{self.port}\r\n"
+                f"X-Sentinel-Timestamp: {ts}\r\n"
+                f"X-Sentinel-Signature: {sig}\r\n"
+                f"Content-Type: application/json\r\n"
+                f"Connection: close\r\n"
+                f"\r\n"
+            ).encode() + body
+            with socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+                s.sendall(req)
+                chunks = []
+                while True:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                raw = b"".join(chunks).decode()
+            status_line = raw.split("\r\n", 1)[0]
+            self.assertIn(" 411", status_line)
+            self.assertIn('"status": "error"', raw)
+        finally:
+            self._stop_server()
+
+    # -- F5: concurrent release calls revoker once ---------------------------
+
+    def test_concurrent_release_calls_revoker_once(self):
+        """F5: two concurrent release calls → revoker.release invoked once,
+        one 200, one 400 (not quarantined)."""
+        self._start_server(dry_run=True)
+        try:
+            # Pre-seed a quarantined incident via /alerts.
+            body = json.dumps({
+                "status": "firing",
+                "alertname": "ConcurrentRel",
+                "startsAt": "2026-07-19T12:00:00Z",
+                "labels": {"agent_id": "agent-cr", "credential_id": "cred-cr"},
+            }).encode()
+            hdrs = _headers(body)
+            _, create_data, _ = self._request("POST", "/alerts", body, hdrs)
+            incident_id = create_data.get("incident_id")
+            self.assertIsNotNone(incident_id)
+            self.assertEqual(
+                self._server.store.get(incident_id).store_status, "quarantined"
+            )
+
+            # Wrap revoker.release with a counter. DryRunRevoker.release succeeds.
+            release_calls = []
+            real_release = self._server.revoker.release
+
+            def counting_release(cred_id, **kw):
+                release_calls.append(cred_id)
+                return real_release(cred_id, **kw)
+
+            self._server.revoker.release = counting_release
+
+            barrier = threading.Barrier(2)
+            results = []
+
+            def caller(idx):
+                body = str(idx).encode()
+                rh = _headers(body)
+                try:
+                    barrier.wait()
+                except threading.BrokenBarrierError:
+                    pass
+                status, data, _ = self._request(
+                    "POST", f"/incidents/{incident_id}/release",
+                    body=body, headers=rh,
+                )
+                results.append((status, data.get("status")))
+
+            t1 = threading.Thread(target=caller, args=(1,))
+            t2 = threading.Thread(target=caller, args=(2,))
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
+
+            # Exactly one revoker.release call.
+            self.assertEqual(len(release_calls), 1,
+                             f"expected 1 release call, got {len(release_calls)}")
+            # One 200/success, one 400/error.
+            statuses = sorted(r[0] for r in results)
+            self.assertEqual(statuses, [200, 400],
+                             f"expected [200, 400], got {statuses}")
+            self.assertIn("success", [r[1] for r in results])
         finally:
             self._stop_server()
 

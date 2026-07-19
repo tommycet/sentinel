@@ -148,6 +148,25 @@ class TestParseAlert(unittest.TestCase):
         )
         self.assertNotEqual(incident.idempotency_key, "fp-unique-123")
 
+    # -- F12: fingerprint includes agent+credential in hash -------------------
+
+    def test_fingerprint_includes_agent_credential(self):
+        """F12: same fingerprint + different agent_id/credential_id → distinct keys."""
+        base = {
+            "status": ALERT_STATUS_FIRING,
+            "alertname": "RunawayToolLoop",
+            "startsAt": "2026-07-19T12:00:00Z",
+            "fingerprint": "FP",
+        }
+        payload_a = {**base, "labels": {"agent_id": "agent-A", "credential_id": "cred-A"}}
+        payload_b = {**base, "labels": {"agent_id": "agent-B", "credential_id": "cred-B"}}
+        key_a = parse_alert(json.dumps(payload_a).encode()).idempotency_key
+        key_b = parse_alert(json.dumps(payload_b).encode()).idempotency_key
+        self.assertNotEqual(
+            key_a, key_b,
+            "shared fingerprint must not collapse alerts from different agents",
+        )
+
 
 class TestIncident(unittest.TestCase):
     """Incident dataclass behavior."""

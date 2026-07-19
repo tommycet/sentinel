@@ -14,6 +14,7 @@ from sentinel.store import (
     IncidentStore,
     STATUS_RECEIVED,
     STATUS_QUARANTINED,
+    STATUS_RELEASING,
     STATUS_FAILED,
     STATUS_RELEASED,
 )
@@ -267,6 +268,68 @@ class TestPragmas(_TmpStore, unittest.TestCase):
     def test_foreign_keys_enabled(self):
         fk = self.store._conn.execute("PRAGMA foreign_keys").fetchone()[0]
         self.assertEqual(fk, 1)
+
+
+# -- F5: atomic claim_for_release + release_failed ---------------------------
+
+class TestClaimForRelease(_TmpStore, unittest.TestCase):
+    """claim_for_release atomically transitions quarantined→releasing."""
+
+    def _seed_quarantined(self, key: str) -> int:
+        inc = _make_incident(key=key)
+        self.store.claim(inc)
+        stored = self.store.get_by_key(key)
+        self.store._set_status(stored.id, STATUS_QUARANTINED)
+        return stored.id
+
+    def test_claim_for_release(self):
+        # Transitions quarantined→releasing and returns the claimed Incident.
+        incident_id = self._seed_quarantined("k-cfr-1")
+        claimed = self.store.claim_for_release(incident_id)
+        self.assertIsInstance(claimed, Incident)
+        self.assertEqual(claimed.id, incident_id)
+        self.assertEqual(claimed.store_status, STATUS_RELEASING)
+
+        # Non-quarantined and missing IDs have no claimant.
+        inc = _make_incident(key="k-cfr-2")
+        self.store.claim(inc)
+        received = self.store.get_by_key("k-cfr-2")
+        self.assertIsNone(self.store.claim_for_release(received.id))
+        self.assertIsNone(self.store.claim_for_release(999999))
+
+        # Concurrent claims have exactly one winner.
+        concurrent_id = self._seed_quarantined("k-cfr-3")
+        winners = []
+        winners_lock = threading.Lock()
+        barrier = threading.Barrier(2)
+
+        def worker():
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
+            result = self.store.claim_for_release(concurrent_id)
+            with winners_lock:
+                winners.append(result)
+
+        t1 = threading.Thread(target=worker)
+        t2 = threading.Thread(target=worker)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+        self.assertEqual(sum(winner is not None for winner in winners), 1)
+
+        # Failed release restores quarantine and appends an immutable audit row.
+        ok = self.store.release_failed(incident_id, "revoker timeout")
+        self.assertTrue(ok)
+        self.assertEqual(self.store.get(incident_id).store_status, STATUS_QUARANTINED)
+        rows = self.store._conn.execute(
+            "SELECT action_type, status, error_message FROM actions "
+            "WHERE incident_id=? AND action_type='release'",
+            (incident_id,),
+        ).fetchall()
+        self.assertEqual(rows, [("release", "failed", "revoker timeout")])
 
 
 if __name__ == "__main__":
