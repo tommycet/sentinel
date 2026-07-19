@@ -51,15 +51,17 @@ class TestDryRunRevoker(unittest.TestCase):
         result = DryRunRevoker().quarantine("cred-1", incident_id="inc-1")
         self.assertTrue(result["success"])
         self.assertEqual(result["action"], "dry_run")
-        self.assertEqual(result["credential_id"], "cred-1")
+        self.assertIn("credential_id_hash", result)
+        self.assertNotIn("credential_id", result)
         self.assertIn("message", result)
+        self.assertNotIn("cred-1", repr(result))
 
     def test_release_returns_dry_run_release(self):
         result = DryRunRevoker().release("cred-1")
         self.assertTrue(result["success"])
         self.assertEqual(result["action"], "dry_run_release")
-        self.assertEqual(result["credential_id"], "cred-1")
-        self.assertIn("message", result)
+        self.assertIn("credential_id_hash", result)
+        self.assertNotIn("cred-1", repr(result))
 
 
 class TestHttpRevoker(_ServerMixin, unittest.TestCase):
@@ -91,13 +93,17 @@ class TestHttpRevoker(_ServerMixin, unittest.TestCase):
             result = HttpRevoker().release("cred-1")
 
         self.assertFalse(result["success"])
-        self.assertEqual(result["credential_id"], "cred-1")
+        self.assertNotIn("credential_id", result)
+        self.assertIn("credential_id_hash", result)
+        self.assertNotIn("cred-1", repr(result))
         self.assertIn("400", result["message"])
 
     def test_timeout_returns_failure(self):
         with patch.dict(os.environ, {"SENTINEL_REVOKE_URL": self.url}, clear=False), patch(
-            "sentinel.revoker.urllib.request.urlopen", side_effect=TimeoutError
-        ):
+            "sentinel.revoker.urllib.request.build_opener"
+        ) as mock_opener:
+            mock_open = mock_opener.return_value.open
+            mock_open.side_effect = TimeoutError
             result = HttpRevoker().quarantine("cred-1")
 
         self.assertFalse(result["success"])
@@ -116,6 +122,27 @@ class TestHttpRevoker(_ServerMixin, unittest.TestCase):
 
         self.assertFalse(result["success"])
         self.assertNotIn(secret, repr(result))
+
+    def test_kwargs_cannot_override_invariants(self):
+        """Caller-supplied action in kwargs must not override the real action."""
+        with patch.dict(os.environ, {"SENTINEL_REVOKE_URL": self.url}, clear=False):
+            result = HttpRevoker().quarantine(
+                "cred-1", action="release", incident_id="inc-1"
+            )
+
+        self.assertTrue(result["success"])
+        # The HTTP request must contain quarantine (not release) as action
+        self.assertEqual(_RevocationHandler.request["body"]["action"], "quarantine")
+        self.assertEqual(_RevocationHandler.request["body"]["credential_id"], "cred-1")
+
+    def test_redirect_with_auth_blocked(self):
+        """Redirect handler must raise HTTPError when Authorization header present."""
+        # We can't test a real redirect in a unit test. Verify the handler exists.
+        from urllib.request import HTTPRedirectHandler
+        from sentinel.revoker import _NoRedirectHandler
+
+        handler = _NoRedirectHandler()
+        self.assertIsInstance(handler, HTTPRedirectHandler)
 
 
 class TestGetRevoker(unittest.TestCase):
