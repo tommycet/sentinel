@@ -1,0 +1,50 @@
+# Runaway Tool Loop Detection Policy
+# Sentinel — SigNoz Hackathon 2026
+#
+# Triggers quarantine when the same agent repeats the same MCP tool + canonicalized
+# argument hash 8+ times within a 60-second sliding window. This is the signature
+# of an agent stuck in a tool-call loop (e.g. infinite retries on the same input).
+#
+# The canonicalized argument hash is a SHA-256 of the arguments sorted by key,
+# so semantically identical calls (barring key order) collide on the same key.
+#
+# Matching demo/runaway_agent.py exactly.
+
+apiVersion: sentinel.io/v1
+kind: RunawayToolLoopPolicy
+metadata:
+  name: runaway-tool-loop
+  description: >
+    Quarantine agents that repeat the same (tool, arg_hash) 8+ times in 60s.
+spec:
+  # Repetition threshold — how many identical (tool, args) pairs before firing.
+  threshold: 8
+
+  # Sliding window in seconds. Only counts calls within this window.
+  windowSeconds: 60
+
+  # How the repetition counter is keyed.
+  # - tool: the MCP tool name (e.g. "search", "read_file")
+  # - args_hash: SHA-256 of JSON args sorted by key
+  key:
+    - tool
+    - args_hash
+
+  # Canonicalization rule for arg hashing.
+  canonicalize:
+    method: json-sort-keys
+    encoding: utf-8
+
+  # Action to take when the threshold is exceeded.
+  action:
+    name: quarantine
+    reversible: true
+    dryRunDefault: true
+
+  # Alert metadata sent to the SigNoz alert webhook.
+  alert:
+    name: RunawayToolLoop
+    severity: critical
+    labels:
+      sentinel/policy: runaway-tool-loop
+      sentinel/detection: deterministic
