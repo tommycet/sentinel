@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import hmac
 import json
 import logging
 import os
@@ -23,6 +22,9 @@ from .store import IncidentStore
 
 # Maximum request body size: 64 KiB
 MAX_BODY_BYTES = 64 * 1024
+
+# The TTL for replay-protection signature cache (app-wide constant)
+_REPLAY_TTL = 301
 
 # Default port
 DEFAULT_PORT = 8090
@@ -54,21 +56,33 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _read_body(self) -> bytes:
-        """Read request body with size limit."""
+        """Read request body with size limit.
+
+        Raises ValueError on:
+        - missing Content-Length (F1 — reject 411)
+        - body exceeding MAX_BODY_BYTES (413)
+        - malformed Content-Length
+        """
         content_length = self.headers.get("Content-Length")
-        if content_length:
-            try:
-                cl = int(content_length)
-            except ValueError:
-                cl = 0
-            if cl > MAX_BODY_BYTES:
-                raise ValueError(f"Body too large: {cl} > {MAX_BODY_BYTES}")
-            if cl == 0:
-                return b""
-        else:
-            cl = MAX_BODY_BYTES
+        if content_length is None:
+            raise ValueError("Missing Content-Length header")  # → 411
+
+        try:
+            cl = int(content_length)
+        except ValueError:
+            raise ValueError("Invalid Content-Length header")
+
+        if cl > MAX_BODY_BYTES:
+            raise ValueError(f"Body too large: {cl} > {MAX_BODY_BYTES}")
+        if cl == 0:
+            return b""
 
         body = self.rfile.read(cl)
+        if len(body) != cl:
+            # F4: drain any leftover bytes from the socket so they don't
+            # pollute the next keep-alive request.
+            self.rfile.read(65536)
+
         if len(body) > MAX_BODY_BYTES:
             raise ValueError(f"Body too large: {len(body)} > {MAX_BODY_BYTES}")
         return body
@@ -76,6 +90,12 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
     def _get_headers(self) -> dict[str, str]:
         """Extract headers as a dict."""
         return {k: v for k, v in self.headers.items()}
+
+    def _replay_key(self, timestamp: str, signature: str, body: bytes) -> str:
+        """Stable key for replay-protection dedup."""
+        return hashlib.sha256(
+            f"{timestamp}|{signature}|".encode() + body
+        ).hexdigest()
 
     def do_GET(self) -> None:
         """Handle GET requests (health check only)."""
@@ -89,7 +109,11 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         try:
             body = self._read_body()
         except ValueError as e:
-            self._send_json(413, {"status": "error", "message": str(e)})
+            msg = str(e)
+            if "Content-Length" in msg:
+                self._send_json(411, {"status": "error", "message": msg})
+            else:
+                self._send_json(413, {"status": "error", "message": msg})
             return
 
         headers = self._get_headers()
@@ -112,9 +136,11 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self._handle_alerts(body, headers, webhook_secret, store, revoker)
             return
 
-        # Route: /incidents/<id>/release
-        if self.path.startswith("/incidents/") and self.path.endswith("/release"):
-            parts = self.path.split("/")
+        # Route: /incidents/<id>/release  (F3: use urlparse for query-string resilience)
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path.startswith("/incidents/") and path.endswith("/release"):
+            parts = path.split("/")
             if len(parts) >= 3:
                 try:
                     incident_id = int(parts[2])
@@ -126,6 +152,26 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"status": "error", "message": "Not found"})
 
+    def _verify_and_record(
+        self, body: bytes, headers: dict[str, str], secret: str, store: IncidentStore
+    ) -> bool:
+        """Verify HMAC + replay guard.  Returns True if authorized."""
+        timestamp = headers.get("X-Sentinel-Timestamp", "")
+        signature = headers.get("X-Sentinel-Signature", "")
+
+        try:
+            if not verify_webhook(timestamp, signature, body, secret):
+                return False
+        except ValueError:
+            return False
+
+        # F2: replay protection — any captured (ts, sig, body) is single-use.
+        rkey = self._replay_key(timestamp, signature, body)
+        if not store.record_signature(rkey):
+            return False
+
+        return True
+
     def _handle_alerts(
         self,
         body: bytes,
@@ -135,16 +181,9 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         revoker: Any,
     ) -> None:
         """Handle POST /alerts — verify, parse, claim, quarantine."""
-        # Verify webhook signature
-        timestamp = headers.get("X-Sentinel-Timestamp", "")
-        signature = headers.get("X-Sentinel-Signature", "")
-
-        try:
-            if not verify_webhook(timestamp, signature, body, secret):
-                self._send_json(401, {"status": "error", "message": "Invalid or expired signature"})
-                return
-        except ValueError as e:
-            self._send_json(401, {"status": "error", "message": str(e)})
+        # Verify webhook signature + replay guard
+        if not self._verify_and_record(body, headers, secret, store):
+            self._send_json(401, {"status": "error", "message": "Invalid or expired signature"})
             return
 
         # Parse alert
@@ -209,8 +248,9 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 },
             )
         else:
+            # F16: revoker failure → 502, not 200
             self._send_json(
-                200,
+                502,
                 {
                     "status": "error",
                     "incident_id": claimed_incident.id,
@@ -230,33 +270,26 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         revoker: Any,
     ) -> None:
         """Handle POST /incidents/<id>/release — verify, get, release."""
-        # Verify webhook signature (empty body is fine for release)
-        timestamp = headers.get("X-Sentinel-Timestamp", "")
-        signature = headers.get("X-Sentinel-Signature", "")
-
-        try:
-            if not verify_webhook(timestamp, signature, body, secret):
-                self._send_json(401, {"status": "error", "message": "Invalid or expired signature"})
-                return
-        except ValueError as e:
-            self._send_json(401, {"status": "error", "message": str(e)})
+        # Verify webhook signature + replay guard
+        if not self._verify_and_record(body, headers, secret, store):
+            self._send_json(401, {"status": "error", "message": "Invalid or expired signature"})
             return
 
-        # Get incident
-        incident = store.get(incident_id)
+        # F5: atomically claim the release so only one caller wins.
+        incident = store.claim_for_release(incident_id)
         if incident is None:
-            self._send_json(404, {"status": "error", "message": "Incident not found"})
-            return
-
-        # Only release if quarantined
-        if incident.store_status != "quarantined":
-            self._send_json(
-                400,
-                {
-                    "status": "error",
-                    "message": f"Incident {incident_id} is not quarantined (status: {incident.store_status})",
-                },
-            )
+            # Either not found or not quarantined — check which.
+            existing = store.get(incident_id)
+            if existing is None:
+                self._send_json(404, {"status": "error", "message": "Incident not found"})
+            else:
+                self._send_json(
+                    400,
+                    {
+                        "status": "error",
+                        "message": f"Incident {incident_id} is not quarantined (status: {existing.store_status})",
+                    },
+                )
             return
 
         # Release via revoker
@@ -267,8 +300,8 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         )
 
         if result.get("success", False):
-            # Update store
-            store.release(incident_id)
+            # F5: commit the release
+            store.release_ok(incident_id)
             self._send_json(
                 200,
                 {
@@ -279,8 +312,12 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 },
             )
         else:
+            # F5b: revert store state, record failure
+            store.release_failed(
+                incident_id, result.get("message", "Release failed")
+            )
             self._send_json(
-                200,
+                502,
                 {
                     "status": "error",
                     "action": result.get("action", "unknown"),
@@ -302,10 +339,23 @@ def main() -> None:
         help="Port to listen on (default: 8090)",
     )
     parser.add_argument(
+        "--host",
+        type=str,
+        default=os.getenv("SENTINEL_HOST", "127.0.0.1"),
+        help="Host to bind to (default: 127.0.0.1)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         default=True,
         help="Dry-run mode: log actions without revoking credentials (default: True)",
+    )
+    parser.add_argument(
+        "--no-dry-run",
+        action="store_true",
+        dest="no_dry_run",
+        default=False,
+        help="Disable dry-run: actually revoke credentials",
     )
     parser.add_argument(
         "--webhook-secret",
@@ -331,12 +381,15 @@ def main() -> None:
     store = IncidentStore(args.db_path)
     revoker = get_revoker()
 
-    # Configure server
-    server = ThreadingHTTPServer(("0.0.0.0", args.port), SentinelRequestHandler)
+    # Resolve dry-run: --no-dry-run wins if set
+    dry_run = not args.no_dry_run if args.no_dry_run else args.dry_run
+
+    # Configure server — bind to configurable host (F17: default 127.0.0.1)
+    server = ThreadingHTTPServer((args.host, args.port), SentinelRequestHandler)
     server.store = store
     server.revoker = revoker
     server.webhook_secret = args.webhook_secret
-    server.dry_run = args.dry_run
+    server.dry_run = dry_run
 
     # Configure logging
     logging.basicConfig(
@@ -345,7 +398,13 @@ def main() -> None:
         stream=sys.stderr,
     )
 
-    log.info("Sentinel listening on port %d (dry_run=%s)", args.port, args.dry_run)
+    log.info(
+        "Sentinel listening on %s:%d (dry_run=%s, revoker=%s)",
+        args.host,
+        args.port,
+        dry_run,
+        type(revoker).__name__,
+    )
 
     try:
         server.serve_forever()

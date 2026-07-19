@@ -140,7 +140,13 @@ class TestParseAlert(unittest.TestCase):
         }
         body = json.dumps(payload).encode()
         incident = parse_alert(body)
-        self.assertEqual(incident.idempotency_key, "fp-unique-123")
+        # Fingerprint is combined with agent_id+credential_id (F12).
+        # Known-good hash for raw="fp-unique-123|agent-123|cred-abc".
+        self.assertEqual(
+            incident.idempotency_key,
+            "985327528994c8426714fddda6f694d23679dcc3d3e7a7ec28e1151072069e89",
+        )
+        self.assertNotEqual(incident.idempotency_key, "fp-unique-123")
 
 
 class TestIncident(unittest.TestCase):

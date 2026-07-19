@@ -55,15 +55,21 @@ def _normalize_timestamp(ts: str) -> datetime:
 
 def _compute_idempotency_key(payload: dict[str, Any]) -> str:
     """Derive a deterministic idempotency key from alert payload."""
-    # Prefer explicit fingerprint if present
+    labels = payload.get("labels", {}) or {}
+    agent_id = labels.get("agent_id", "")
+    credential_id = labels.get("credential_id", "")
+    # Prefer explicit fingerprint, but combine with agent_id+credential_id
+    # so two alerts with the same fingerprint but different agents are NOT
+    # collapsed (F12).
     if "fingerprint" in payload:
-        return str(payload["fingerprint"])
+        raw = f"{payload['fingerprint']}|{agent_id}|{credential_id}"
+        return hashlib.sha256(raw.encode()).hexdigest()
     # Fallback: stable subset of fields
     stable = {
         "status": payload.get("status"),
         "alertname": payload.get("alertname"),
         "startsAt": payload.get("startsAt"),
-        "labels": payload.get("labels", {}),
+        "labels": labels,
     }
     canonical = json.dumps(stable, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()

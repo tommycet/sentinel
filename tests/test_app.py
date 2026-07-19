@@ -202,13 +202,16 @@ class TestAppService(unittest.TestCase):
                 "startsAt": "2026-07-19T12:00:00Z",
                 "labels": {"agent_id": "agent-dup", "credential_id": "cred-dup"},
             }).encode()
-            hdrs = _headers(body)
+            hdrs1 = _headers(body)
 
-            status1, data1, _ = self._request("POST", "/alerts", body, hdrs)
+            status1, data1, _ = self._request("POST", "/alerts", body, hdrs1)
             self.assertEqual(status1, 200)
             self.assertEqual(data1.get("status"), "success")
 
-            status2, data2, _ = self._request("POST", "/alerts", body, hdrs)
+            # Ensure a fresh clock tick so the replay key differs.
+            time.sleep(1)
+            hdrs2 = _headers(body)
+            status2, data2, _ = self._request("POST", "/alerts", body, hdrs2)
             self.assertEqual(status2, 200)
             self.assertEqual(data2.get("status"), "duplicate")
             self.assertEqual(data2.get("incident_id"), data1.get("incident_id"))

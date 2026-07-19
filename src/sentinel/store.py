@@ -4,16 +4,18 @@ from __future__ import annotations
 import os
 import sqlite3
 import threading
+import time
 from datetime import datetime
 
 from .model import Incident
 
 STATUS_RECEIVED = "received"
 STATUS_QUARANTINED = "quarantined"
+STATUS_RELEASING = "releasing"
 STATUS_FAILED = "failed"
 STATUS_RELEASED = "released"
 VALID_STATUSES = frozenset(
-    {STATUS_RECEIVED, STATUS_QUARANTINED, STATUS_FAILED, STATUS_RELEASED}
+    {STATUS_RECEIVED, STATUS_QUARANTINED, STATUS_RELEASING, STATUS_FAILED, STATUS_RELEASED}
 )
 
 _SCHEMA = """
@@ -45,6 +47,11 @@ CREATE TABLE IF NOT EXISTS actions (
 );
 CREATE INDEX IF NOT EXISTS idx_actions_incident ON actions(incident_id);
 CREATE INDEX IF NOT EXISTS idx_actions_status ON actions(status);
+
+CREATE TABLE IF NOT EXISTS seen_signatures (
+    sig_key TEXT PRIMARY KEY,
+    created_at REAL NOT NULL
+);
 """
 
 
@@ -213,6 +220,89 @@ class IncidentStore:
                 (STATUS_QUARANTINED,),
             ).fetchall()
             return [self._from_row(row) for row in rows]
+
+    # -- F2: Replay protection ------------------------------------------------
+
+    _REPLAY_TTL = 301  # seconds
+
+    def record_signature(self, sig_key: str) -> bool:
+        """Record a seen signature.  Returns False if already seen (replay)."""
+        now = time.time()
+        with self._lock:
+            try:
+                self._conn.execute("BEGIN")
+                # Purge expired entries
+                self._conn.execute(
+                    "DELETE FROM seen_signatures WHERE created_at < ?",
+                    (now - self._REPLAY_TTL,),
+                )
+                self._conn.execute(
+                    "INSERT INTO seen_signatures (sig_key, created_at) VALUES (?, ?)",
+                    (sig_key, now),
+                )
+                self._conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                self._conn.rollback()
+                return False
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    # -- F5: Atomic release guard ---------------------------------------------
+
+    def claim_for_release(self, incident_id: int) -> Incident | None:
+        """Atomically transition quarantined→releasing; returns Incident or None."""
+        with self._lock:
+            self._conn.execute("BEGIN")
+            try:
+                cursor = self._conn.execute(
+                    """UPDATE incidents
+                       SET status=?, updated_at=CURRENT_TIMESTAMP
+                       WHERE id=? AND status=?""",
+                    (STATUS_RELEASING, incident_id, STATUS_QUARANTINED),
+                )
+                if cursor.rowcount != 1:
+                    self._conn.rollback()
+                    return None
+                row = self._conn.execute(
+                    "SELECT id, idempotency_key, alertname, status, agent_id, "
+                    "credential_id, severity, starts_at FROM incidents WHERE id=?",
+                    (incident_id,),
+                ).fetchone()
+                self._conn.commit()
+                return self._from_row(row)
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def release_ok(self, incident_id: int) -> bool:
+        """Commit the release after successful revoker."""
+        return self._set_status_with_audit(
+            incident_id, STATUS_RELEASED, "release", "success"
+        )
+
+    def release_failed(self, incident_id: int, error: str) -> bool:
+        """Record a failed release; transition back to quarantined."""
+        with self._lock:
+            self._conn.execute("BEGIN")
+            try:
+                self._conn.execute(
+                    """UPDATE incidents SET status=?, updated_at=CURRENT_TIMESTAMP
+                       WHERE id=? AND status=?""",
+                    (STATUS_QUARANTINED, incident_id, STATUS_RELEASING),
+                )
+                self._conn.execute(
+                    """INSERT INTO actions
+                       (incident_id, action_type, status, error_message)
+                       VALUES (?, 'release', 'failed', ?)""",
+                    (incident_id, error),
+                )
+                self._conn.commit()
+                return True
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     def close(self) -> None:
         """Close the database connection."""
