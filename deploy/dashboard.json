@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "title": "Sentinel — Runaway Agent Detection",
+  "description": "Real-time monitoring of agent tool-call patterns, quarantines, and Sentinel circuit-breaker metrics. Import into SigNoz via Install API.",
+  "panels": [
+    {
+      "id": "tool-calls-per-min",
+      "title": "Tool Calls / min by Agent",
+      "type": "timeseries",
+      "description": "Rate of MCP tool calls per agent (count per 60s). Spikes indicate potential runaway loops.",
+      "query": {
+        "promql": "sum by (agent_id) (rate(sentinel_tool_calls_total[1m]))",
+        "legend": "{{ agent_id }}"
+      },
+      "unit": "calls/min",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6}
+    },
+    {
+      "id": "repeated-fingerprints",
+      "title": "Repeated Call Fingerprints",
+      "type": "table",
+      "description": "Top (tool, args_hash) pairs sorted by repetition count. Values approaching 8 may trigger quarantine.",
+      "query": {
+        "promql": "topk(10, sentinel_tool_repetition_count)",
+        "legend": "{{ tool }} / {{ args_hash_short }}"
+      },
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 6}
+    },
+    {
+      "id": "quarantine-count",
+      "title": "Quarantine Count",
+      "type": "stat",
+      "description": "Number of credentials currently in quarantine state (status = quarantined).",
+      "query": {
+        "promql": "sum(sentinel_quarantine_active)",
+        "legend": "quarantined agents"
+      },
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 3}
+    },
+    {
+      "id": "quarantine-total",
+      "title": "Total Quarantine Actions",
+      "type": "stat",
+      "description": "Cumulative number of quarantine actions executed (including repeats).",
+      "query": {
+        "promql": "sum(increase(sentinel_quarantine_total[1h]))"
+      },
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 3}
+    },
+    {
+      "id": "alert-latency",
+      "title": "Alert-to-Action Latency (p99)",
+      "type": "timeseries",
+      "description": "Latency from webhook receipt to quarantine action completion. P99 across recent window.",
+      "query": {
+        "promql": "histogram_quantile(0.99, sum(rate(sentinel_alert_latency_bucket[5m])) by (le))",
+        "legend": "p99"
+      },
+      "unit": "seconds",
+      "gridPos": {"x": 0, "y": 6, "w": 12, "h": 6}
+    },
+    {
+      "id": "quarantined-agents",
+      "title": "Currently Quarantined Agents",
+      "type": "table",
+      "description": "List of agent IDs currently under quarantine, with incident IDs and timestamps.",
+      "query": {
+        "promql": "sentinel_quarantine_active > 0",
+        "legend": "{{ agent_id }}"
+      },
+      "gridPos": {"x": 12, "y": 6, "w": 12, "h": 6}
+    },
+    {
+      "id": "idempotency-keys",
+      "title": "Idempotency Key Hit Rate",
+      "type": "timeseries",
+      "description": "Shows duplicate vs new webhook requests. High duplicate rate means multiple alerts firing for same incident.",
+      "query": {
+        "promql": "sum by (type) (rate(sentinel_alerts_idempotency_total[5m]))",
+        "legend": "{{ type }}"
+      },
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 6}
+    },
+    {
+      "id": "dry-run-ratio",
+      "title": "Dry-Run / Live Quarantine Ratio",
+      "type": "pie",
+      "description": "Share of quarantine actions that were dry-run (no real revocation) vs live revocation.",
+      "query": {
+        "promql": "sum by (dry_run) (sentinel_quarantine_actions_total)"
+      },
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 6}
+    }
+  ]
+}

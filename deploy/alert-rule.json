@@ -1,0 +1,29 @@
+{
+  "alert": "RunawayToolLoop",
+  "ruleType": "threshold",
+  "severity": "critical",
+  "condition": {
+    "aggregate": "count",
+    "attribute": "sentinel.alert.name",
+    "operator": ">=",
+    "value": 8,
+    "window": "60s"
+  },
+  "labels": {
+    "sentinel/policy": "runaway-tool-loop",
+    "sentinel/detection": "deterministic"
+  },
+  "annotations": {
+    "summary": "Agent {{ $labels.agent_id }} repeated tool {{ $labels.tool }} {{ $value }} times in 60s",
+    "description": "Runaway tool loop detected: agent {{ $labels.agent_id }} made {{ $value }} identical (tool, args_hash) calls within 60 seconds. Quarantine threshold is 8.",
+    "runbook_url": "https://github.com/your-org/signoz-sentinel#runaway-tool-loop"
+  },
+  "webhook_configs": [{
+    "url": "http://signoz-sentinel:8090/alerts",
+    "send_resolved": true,
+    "headers": {
+      "X-Sentinel-Timestamp": "{{ .StartsAt.Unix }}",
+      "X-Sentinel-Signature": "{{ template \"sentinel_hmac\" . }}"
+    }
+  }]
+}
