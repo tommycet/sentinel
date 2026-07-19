@@ -1,0 +1,16 @@
+# Sentinel — SigNoz Foundry casting configuration
+#
+# Deploys SigNoz (OTel collector, ClickHouse, Postgres, Frontend, MCP)
+# via Docker Compose. Run:
+#   foundryctl gauge -f casting.yaml   # validate prereqs
+#   foundryctl forge -f casting.yaml   # generate compose
+#   scripts/patch-compose.py           # add Sentinel service
+#   docker compose -f pours/deployment/compose.yaml up -d
+apiVersion: v1alpha1
+kind: Installation
+metadata:
+  name: signoz
+spec:
+  deployment:
+    flavor: compose
+    mode: docker
