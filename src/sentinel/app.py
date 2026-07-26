@@ -99,11 +99,37 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         ).hexdigest()
 
     def do_GET(self) -> None:
-        """Handle GET requests (health check only)."""
-        if self.path == "/livez":
+        """Handle GET requests (health check + lineage queries)."""
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/livez":
             self._send_json(200, {"status": "ok", "version": "0.1.0"})
-        else:
-            self._send_json(404, {"status": "error", "message": "Not found"})
+            return
+        # Lineage query: /lineage?agent=<id> or /lineage?artifact=<path>
+        if path == "/lineage":
+            from urllib.parse import parse_qs
+            qs = parse_qs(parsed.query)
+            store = getattr(self.server, "lineage_graph", None)
+            if store is None:
+                self._send_json(200, {"events": [], "message": "lineage not configured"})
+                return
+            agent = qs.get("agent", [""])[0]
+            artifact = qs.get("artifact", [""])[0]
+            if agent:
+                events = store.effects_of(agent)
+            elif artifact:
+                events = store.causes_of(artifact)
+            else:
+                self._send_json(400, {"status": "error", "message": "provide ?agent= or ?artifact="})
+                return
+            self._send_json(200, {"events": [
+                {"agent_id": e.agent_id, "artifact": e.artifact,
+                 "kind": e.artifact_kind, "action": e.action,
+                 "trace_id": e.trace_id, "cost_usd": e.cost_usd}
+                for e in events
+            ]})
+            return
+        self._send_json(404, {"status": "error", "message": "Not found"})
 
     def do_POST(self) -> None:
         """Handle POST requests (/alerts, /incidents/<id>/release)."""

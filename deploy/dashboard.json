@@ -1,80 +1,180 @@
 {
-  "title": "Sentinel — Runaway Agent Detection",
-  "description": "Closed-loop agent runaway detection: quarantine events, release events, and credential-hash flow from the Sentinel service exported via OTLP.",
-  "tags": ["sentinel", "agent", "security", "traces"],
-  "variables": {},
-  "version": "v5",
+  "description": "Closed-loop agent runaway detection: quarantine events, release events, credential-hash flow, and AgentLineage artifact.touched events from the Sentinel service exported via OTLP.",
   "layout": [
-    {"h": 4, "i": "score-alerts", "moved": false, "static": false, "w": 4, "x": 0, "y": 0},
-    {"h": 4, "i": "score-quar", "moved": false, "static": false, "w": 4, "x": 4, "y": 0},
-    {"h": 4, "i": "score-rel", "moved": false, "static": false, "w": 4, "x": 8, "y": 0},
-    {"h": 6, "i": "graph-quar", "moved": false, "static": false, "w": 12, "x": 0, "y": 4}
+    {
+      "h": 4,
+      "i": "score-alerts",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "h": 4,
+      "i": "score-quar",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 4,
+      "y": 0
+    },
+    {
+      "h": 4,
+      "i": "score-rel",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 8,
+      "y": 0
+    },
+    {
+      "h": 4,
+      "i": "score-lineage",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 0,
+      "y": 8
+    },
+    {
+      "h": 6,
+      "i": "graph-quar",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 0,
+      "y": 10
+    },
+    {
+      "h": 6,
+      "i": "graph-lineage",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 0,
+      "y": 16
+    }
   ],
   "panelMap": {},
+  "tags": [
+    "sentinel",
+    "agent",
+    "security",
+    "traces",
+    "lineage"
+  ],
+  "title": "Sentinel \u2014 Runaway Agent Detection + AgentLineage",
+  "variables": {},
+  "version": "v5",
   "widgets": [
     {
-      "id": "score-alerts",
-      "title": "Total Alerts Received",
-      "panelTypes": "value",
+      "contextLinks": {
+        "linksData": []
+      },
       "description": "Count of sentinel.alert.received spans",
-      "query": {
-        "queryType": "clickhouse_sql",
-        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.alert.received' AND timestamp >= now() - INTERVAL 1 HOUR"
-      },
-      "selectedTracesFields": [],
-      "selectedLogFields": [],
-      "timePreferance": "GLOBAL_TIME",
-      "opacity": "1",
+      "id": "score-alerts",
       "nullZeroValues": "zero",
-      "contextLinks": {"linksData": []}
+      "opacity": "1",
+      "panelTypes": "value",
+      "query": {
+        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.alert.received' AND timestamp >= now() - INTERVAL 1 HOUR",
+        "queryType": "clickhouse_sql"
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Total Alerts Received"
     },
     {
-      "id": "score-quar",
-      "title": "Quarantines",
-      "panelTypes": "value",
+      "contextLinks": {
+        "linksData": []
+      },
       "description": "Count of sentinel.agent.quarantined spans",
-      "query": {
-        "queryType": "clickhouse_sql",
-        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.agent.quarantined' AND timestamp >= now() - INTERVAL 1 HOUR"
-      },
-      "selectedTracesFields": [],
-      "selectedLogFields": [],
-      "timePreferance": "GLOBAL_TIME",
-      "opacity": "1",
+      "id": "score-quar",
       "nullZeroValues": "zero",
-      "contextLinks": {"linksData": []}
-    },
-    {
-      "id": "score-rel",
-      "title": "Releases",
+      "opacity": "1",
       "panelTypes": "value",
-      "description": "Count of sentinel.agent.released spans",
       "query": {
-        "queryType": "clickhouse_sql",
-        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.agent.released' AND timestamp >= now() - INTERVAL 1 HOUR"
+        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.agent.quarantined' AND timestamp >= now() - INTERVAL 1 HOUR",
+        "queryType": "clickhouse_sql"
       },
-      "selectedTracesFields": [],
       "selectedLogFields": [],
+      "selectedTracesFields": [],
       "timePreferance": "GLOBAL_TIME",
-      "opacity": "1",
-      "nullZeroValues": "zero",
-      "contextLinks": {"linksData": []}
+      "title": "Quarantines"
     },
     {
-      "id": "graph-quar",
-      "title": "Quarantine Events Over Time",
-      "panelTypes": "graph",
-      "description": "sentinel.agent.quarantined spans per minute",
-      "query": {
-        "queryType": "clickhouse_sql",
-        "chQuery": "SELECT toStartOfMinute(timestamp) as t, count() as q FROM signoz_spans WHERE name = 'sentinel.agent.quarantined' AND timestamp >= now() - INTERVAL 6 HOUR GROUP BY t ORDER BY t"
+      "contextLinks": {
+        "linksData": []
       },
-      "selectedTracesFields": [],
-      "selectedLogFields": [],
-      "timePreferance": "GLOBAL_TIME",
-      "opacity": "1",
+      "description": "Count of sentinel.agent.released spans",
+      "id": "score-rel",
       "nullZeroValues": "zero",
-      "contextLinks": {"linksData": []}
+      "opacity": "1",
+      "panelTypes": "value",
+      "query": {
+        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'sentinel.agent.released' AND timestamp >= now() - INTERVAL 1 HOUR",
+        "queryType": "clickhouse_sql"
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Releases"
+    },
+    {
+      "contextLinks": {
+        "linksData": []
+      },
+      "description": "sentinel.agent.quarantined spans per minute",
+      "id": "graph-quar",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "chQuery": "SELECT toStartOfMinute(timestamp) as t, count() as q FROM signoz_spans WHERE name = 'sentinel.agent.quarantined' AND timestamp >= now() - INTERVAL 6 HOUR GROUP BY t ORDER BY t",
+        "queryType": "clickhouse_sql"
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Quarantine Events Over Time"
+    },
+    {
+      "contextLinks": {
+        "linksData": []
+      },
+      "description": "Agent\u2192artifact touch events from AgentLineage",
+      "id": "score-lineage",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "value",
+      "query": {
+        "chQuery": "SELECT count() FROM signoz_spans WHERE name = 'artifact.touched' AND timestamp >= now() - INTERVAL 1 HOUR",
+        "queryType": "clickhouse_sql"
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Lineage Events (artifact.touched)"
+    },
+    {
+      "contextLinks": {
+        "linksData": []
+      },
+      "description": "artifact.touched spans per agent per minute",
+      "id": "graph-lineage",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "chQuery": "SELECT toStartOfMinute(timestamp) as t, attributes_string['agent.id'] as agent, count() as touches FROM signoz_spans WHERE name = 'artifact.touched' AND timestamp >= now() - INTERVAL 6 HOUR GROUP BY t, agent ORDER BY t",
+        "queryType": "clickhouse_sql"
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Agent\u2192Artifact Lineage"
     }
   ]
 }

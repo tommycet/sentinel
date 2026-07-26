@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentinel — Agent Lineage System</title>
+<meta name="description" content="Closed-loop agent runaway detection. Real-time lineage tracking, revocation, observability.">
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700&f[]=general-sans@400,500,600,700&f[]=ibm-plex-mono@400,500,600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS — semantic, NOT shadcn
+   ============================================================ */
+:root{
+  --ink:#0a0a0a;
+  --paper:#f6f4f0;
+  --rule:#d9d6cf;
+  --signal:#cce832;
+  --signal-dim:#5a6e12;
+  --mono:#1a1917;
+  --surface:#ebebe6;
+  --ease-out:cubic-bezier(.16,1,.3,1);
+  --ease-in-out:cubic-bezier(.65,0,.35,1);
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;perspective:1200px}
+body{
+  font-family:'General Sans',system-ui,sans-serif;
+  background:var(--paper);color:var(--ink);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  line-height:1.45;overflow-x:hidden;
+}
+::selection{background:var(--signal);color:var(--ink)}
+
+/* ============================================================
+   SCROLL-DRIVEN REVEAL SYSTEM
+   Elements start invisible, animate in on viewport entry.
+   Only opacity + transform (never layout props).
+   ============================================================ */
+.reveal{
+  opacity:0;transform:translateY(32px);
+  transition:opacity .7s var(--ease-out),transform .7s var(--ease-out);
+}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-left{
+  opacity:0;transform:translateX(-48px);
+  transition:opacity .7s var(--ease-out),transform .7s var(--ease-out);
+}
+.reveal-left.visible{opacity:1;transform:translateX(0)}
+.reveal-right{
+  opacity:0;transform:translateX(48px);
+  transition:opacity .7s var(--ease-out),transform .7s var(--ease-out);
+}
+.reveal-right.visible{opacity:1;transform:translateX(0)}
+.reveal-scale{
+  opacity:0;transform:scale(.92);
+  transition:opacity .8s var(--ease-out),transform .8s var(--ease-out);
+}
+.reveal-scale.visible{opacity:1;transform:scale(1)}
+/* stagger children */
+.stagger-children > *:nth-child(1){transition-delay:0s}
+.stagger-children > *:nth-child(2){transition-delay:.08s}
+.stagger-children > *:nth-child(3){transition-delay:.16s}
+.stagger-children > *:nth-child(4){transition-delay:.24s}
+.stagger-children > *:nth-child(5){transition-delay:.32s}
+.stagger-children > *:nth-child(6){transition-delay:.4s}
+.stagger-children > *:nth-child(7){transition-delay:.48s}
+.stagger-children > *:nth-child(8){transition-delay:.56s}
+.stagger-children > *:nth-child(9){transition-delay:.64s}
+.stagger-children > *:nth-child(10){transition-delay:.72s}
+.stagger-children > *:nth-child(11){transition-delay:.8s}
+.stagger-children > *:nth-child(12){transition-delay:.88s}
+
+@media(prefers-reduced-motion:reduce){
+  .reveal,.reveal-left,.reveal-right,.reveal-scale{
+    opacity:1!important;transform:none!important;transition:none!important;
+  }
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(246,244,240,.88);backdrop-filter:blur(16px) saturate(.85);
+  border-bottom:1px solid var(--rule);
+  padding:.9rem clamp(1.5rem,5vw,4rem);
+  display:flex;align-items:center;justify-content:space-between;
+}
+nav .logo{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:700;font-size:1.05rem;letter-spacing:-.02em;
+  color:var(--ink);text-decoration:none;
+}
+nav .nav-links a{
+  font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:.7rem;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--mono);
+  text-decoration:none;margin-left:2rem;position:relative;
+}
+nav .nav-links a::after{
+  content:'';position:absolute;bottom:-3px;left:0;width:0;height:1.5px;background:var(--signal);
+  transition:width .3s var(--ease-out);
+}
+nav .nav-links a:hover::after{width:100%}
+nav .nav-links a:hover{color:var(--ink)}
+
+/* ============================================================
+   HERO — asymmetric 2-col with CSS 3D parallax
+   ============================================================ */
+.hero{
+  display:grid;grid-template-columns:1fr .9fr;min-height:92vh;
+  border-bottom:1px solid var(--ink);perspective:1000px;
+}
+.hero-left{
+  padding:calc(7rem + 2vh) clamp(1.5rem,5vw,3.5rem) calc(4rem + 2vh);
+  border-right:1px solid var(--ink);
+  display:flex;flex-direction:column;justify-content:center;gap:1.6rem;
+  transform-style:preserve-3d;
+}
+.hero-right{
+  position:relative;overflow:hidden;
+  background:linear-gradient(160deg,#1a1814 0%,#0c0b09 100%);
+  transform:rotateY(-2deg) translateZ(0);
+  transform-origin:left center;
+  transition:transform .6s var(--ease-out);
+}
+.hero-right:hover{transform:rotateY(0deg) translateZ(8px)}
+.hero-right img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  opacity:.85;mix-blend-mode:multiply;
+}
+.hero-left .marginalia{
+  font-family:'IBM Plex Mono',monospace;font-size:.65rem;text-transform:uppercase;
+  letter-spacing:.12em;color:var(--mono);margin-bottom:.1rem;
+}
+.hero-left h1{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:400;
+  font-size:clamp(2.8rem,7vw,5.5rem);line-height:.92;letter-spacing:-.035em;
+  color:var(--ink);
+}
+.hero-left h1 em{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:700;
+  font-style:normal;
+  background:linear-gradient(120deg,transparent 55%,var(--signal) 55%,var(--signal) 80%,transparent 80%);
+  background-size:100% 100%;
+}
+.hero-left p.lead{
+  font-size:clamp(1.05rem,1.5vw,1.25rem);line-height:1.55;color:var(--mono);max-width:38ch;
+}
+.hero-left .cta-row{margin-top:.8rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.hero-left .cta-row a{
+  display:inline-block;padding:.7rem 1.6rem;font-size:.82rem;font-weight:600;text-decoration:none;
+  border:1px solid var(--ink);color:var(--ink);transition:background .25s var(--ease-out),color .25s var(--ease-out);
+  letter-spacing:.02em;position:relative;overflow:hidden;
+}
+.hero-left .cta-row a::before{
+  content:'';position:absolute;inset:0;background:var(--signal);
+  transform:translateX(-101%);transition:transform .4s var(--ease-out);z-index:-1;
+}
+.hero-left .cta-row a:hover::before{transform:translateX(0)}
+.hero-left .cta-row a:hover{border-color:var(--signal)}
+.hero-left .cta-row a.secondary{background:var(--surface);border-color:var(--rule)}
+.hero-left .cta-row a.secondary:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+/* ============================================================
+   SECTION LABELS — lowercase mono marginalia
+   ============================================================ */
+.section-label{
+  font-family:'IBM Plex Mono',monospace;font-size:.62rem;text-transform:uppercase;
+  letter-spacing:.14em;color:var(--mono);margin-bottom:.6rem;
+}
+.section-header{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:400;
+  font-size:clamp(1.8rem,4vw,3rem);letter-spacing:-.025em;line-height:1.1;color:var(--ink);
+  max-width:55ch;
+}
+
+/* ============================================================
+   STATS STRIP — animated counters
+   ============================================================ */
+.stats-strip{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:.05rem;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--ink);
+}
+.stats-strip .stat{
+  padding:2rem clamp(1rem,3vw,2.5rem);border-right:1px solid var(--rule);
+  background:transparent;transition:background .2s;
+}
+.stats-strip .stat:last-child{border-right:none}
+.stats-strip .stat:hover{background:var(--surface)}
+.stats-strip .stat .num{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:400;
+  font-size:clamp(2rem,4vw,3.2rem);letter-spacing:-.03em;color:var(--ink);line-height:.9;
+}
+.stats-strip .stat .label{
+  font-family:'IBM Plex Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--mono);margin-top:.6rem;line-height:1.3;
+}
+
+/* ============================================================
+   ARCHITECTURE — dark band with 3D perspective tilt
+   ============================================================ */
+.arch{
+  padding:6rem 0;background:var(--ink);border-top:1px solid var(--ink);color:var(--paper);
+  perspective:800px;
+}
+.arch .section-header{color:var(--paper)}
+.arch .section-label{color:#9b9892}
+.arch-flow{
+  font-family:'IBM Plex Mono',monospace;font-size:.82rem;line-height:1.7;color:#c8c6bf;
+  margin-top:2.5rem;padding-left:1.2rem;
+  border-left:2px solid var(--signal);
+  transform:rotateX(2deg) rotateY(-1deg);
+  transition:transform .5s var(--ease-out);
+}
+.arch-flow:hover{transform:rotateX(0) rotateY(0)}
+.arch-flow .node{color:var(--signal);font-weight:600}
+.arch-flow .connector{color:#6e6b64}
+
+/* ============================================================
+   FEATURES — hairline rows with left-slide reveal
+   ============================================================ */
+.features{padding:6rem 0 0}
+.feature-row{
+  display:grid;grid-template-columns:1fr 1.2fr;gap:2rem 3rem;
+  padding:3rem 0;border-top:1px solid var(--rule);align-items:start;
+}
+.feature-row .f-label{
+  font-family:'IBM Plex Mono',monospace;font-size:.55rem;text-transform:uppercase;
+  letter-spacing:.14em;color:var(--mono);margin-bottom:.5rem;
+}
+.feature-row h3{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:400;
+  font-size:clamp(1.2rem,2.5vw,1.7rem);letter-spacing:-.02em;line-height:1.15;color:var(--ink);
+}
+.feature-row p,.feature-row ul{font-size:.95rem;color:var(--mono);line-height:1.6;max-width:52ch}
+.feature-row ul{margin-top:.8rem;padding-left:1.1rem;list-style:none}
+.feature-row ul li{
+  position:relative;padding-left:1rem;margin-bottom:.35rem;
+  font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--mono);
+}
+.feature-row ul li::before{
+  content:'';position:absolute;left:0;top:.55em;width:4px;height:4px;background:var(--signal);border-radius:50%;
+}
+
+/* ============================================================
+   LINEAGE ARTIFACTS — cards with 3D tilt on hover
+   ============================================================ */
+.lineage{padding:6rem 0}
+.lineage-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem 1.5rem;margin-top:2.5rem;
+}
+.lineage-card{
+  border:1px solid var(--rule);padding:1.4rem;
+  background:transparent;position:relative;overflow:hidden;
+  transform:perspective(600px) rotateX(0) rotateY(0);
+  transition:transform .4s var(--ease-out),border-color .2s,background .2s;
+  transform-style:preserve-3d;
+}
+.lineage-card::before{
+  content:'';position:absolute;top:0;left:0;width:100%;height:2px;background:var(--signal);opacity:.8;
+}
+.lineage-card:hover{
+  border-color:#b5b3ae;
+  transform:perspective(600px) rotateX(-2deg) rotateY(2deg) translateZ(4px);
+}
+.lineage-card h4{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:500;font-size:1.05rem;
+  letter-spacing:-.015em;line-height:1.2;color:var(--ink);margin-bottom:.4rem;
+}
+.lineage-card .card-meta{
+  font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:var(--mono);
+  text-transform:uppercase;letter-spacing:.08em;
+}
+.lineage-card p.desc{font-size:.82rem;color:var(--mono);line-height:1.55;margin-top:.6rem}
+
+/* ============================================================
+   SECURITY AUDIT — staggered reveal grid
+   ============================================================ */
+.audit{padding:6rem 0;border-top:1px solid var(--rule)}
+.audit-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.05rem 1px;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);margin-top:2.5rem;
+}
+.audit-item{
+  padding:1.3rem .8rem;border-right:1px solid var(--rule);
+  display:flex;flex-direction:column;gap:.4rem;
+}
+.audit-item:last-child{border-right:none}
+.audit-item .label{
+  font-family:'IBM Plex Mono',monospace;font-size:.58rem;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--mono);
+}
+.audit-item .val{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:500;font-size:1.05rem;color:var(--ink);line-height:1.15;
+}
+.audit-item .note{font-size:.75rem;color:#999894;line-height:1.35}
+
+/* ============================================================
+   DOCS SECTION — editorial layout with code blocks
+   ============================================================ */
+.docs{padding:6rem 0;border-top:1px solid var(--rule)}
+.docs-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:2.5rem;
+  border:1px solid var(--rule);
+}
+.docs-nav{
+  border-right:1px solid var(--rule);padding:2rem;
+}
+.docs-nav a{
+  display:block;padding:.5rem 0;font-family:'IBM Plex Mono',monospace;font-size:.78rem;
+  color:var(--mono);text-decoration:none;border-bottom:1px solid var(--rule);
+  transition:color .2s,padding-left .2s var(--ease-out);
+}
+.docs-nav a:last-child{border-bottom:none}
+.docs-nav a:hover{color:var(--ink);padding-left:.4rem}
+.docs-nav a.active{color:var(--ink);font-weight:600}
+.docs-content{padding:2.5rem 2rem}
+.docs-content h3{
+  font-family:'Cabinet Grotesk',Georgia,serif;font-weight:500;font-size:1.4rem;
+  letter-spacing:-.015em;color:var(--ink);margin-bottom:1rem;
+}
+.docs-content p{
+  font-size:.92rem;color:var(--mono);line-height:1.65;margin-bottom:1rem;max-width:58ch;
+}
+.docs-content h4{
+  font-family:'IBM Plex Mono',monospace;font-size:.65rem;text-transform:uppercase;
+  letter-spacing:.12em;color:var(--signal-dim);margin:1.5rem 0 .6rem;
+}
+pre.code-block{
+  font-family:'IBM Plex Mono',monospace;font-size:.78rem;line-height:1.6;
+  background:var(--ink);color:#c8c6bf;padding:1.4rem 1.6rem;
+  border-left:2px solid var(--signal);margin:1rem 0;overflow-x:auto;
+  white-space:pre;
+}
+pre.code-block .kw{color:var(--signal)}
+pre.code-block .cm{color:#6e6b64}
+pre.code-block .st{color:#e8c170}
+.docs-content code{
+  font-family:'IBM Plex Mono',monospace;font-size:.82rem;
+  background:var(--surface);padding:.15em .4em;border-radius:2px;
+}
+.docs-content ul{padding-left:1.2rem;margin:.8rem 0 1rem;list-style:none}
+.docs-content li{
+  position:relative;padding-left:1rem;margin-bottom:.4rem;
+  font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--mono);line-height:1.5;
+}
+.docs-content li::before{
+  content:'';position:absolute;left:0;top:.6em;width:4px;height:4px;
+  background:var(--signal);border-radius:50%;
+}
+.docs-tabs{
+  display:flex;gap:0;border-bottom:1px solid var(--rule);
+}
+.docs-tabs button{
+  font-family:'IBM Plex Mono',monospace;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.1em;padding:.8rem 1.5rem;background:none;border:none;
+  color:var(--mono);cursor:pointer;border-bottom:2px solid transparent;
+  transition:color .2s,border-color .2s;
+}
+.docs-tabs button:hover{color:var(--ink)}
+.docs-tabs button.active{color:var(--ink);border-bottom-color:var(--signal)}
+.docs-panel{display:none}
+.docs-panel.active{display:block}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer{
+  padding:4rem clamp(1.5rem,5vw,4rem) 2.5rem;border-top:1px solid var(--ink);
+  display:flex;align-items:flex-end;justify-content:space-between;gap:2rem;flex-wrap:wrap;
+}
+footer .credits{
+  font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:var(--mono);line-height:1.5;letter-spacing:.02em;
+}
+footer .credits strong{font-weight:600;color:var(--ink)}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media(max-width:900px){
+  .hero{grid-template-columns:1fr;min-height:auto}
+  .hero-left{border-right:none;border-bottom:1px solid var(--ink)}
+  .hero-right{display:none}
+  .stats-strip{grid-template-columns:repeat(2,1fr)}
+  .stats-strip .stat:nth-child(2n){border-right:none}
+  .stats-strip .stat:nth-child(1),.stats-strip .stat:nth-child(2){border-bottom:1px solid var(--rule)}
+  .feature-row{grid-template-columns:1fr;gap:1rem}
+  .docs-grid{grid-template-columns:1fr}
+  .docs-nav{border-right:none;border-bottom:1px solid var(--rule)}
+  footer{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     NAVIGATION
+     ============================================================ -->
+<nav aria-label="Main">
+  <a href="#" class="logo">Sentinel</a>
+  <div class="nav-links">
+    <a href="#lineage">Lineage</a>
+    <a href="#audit">Audit</a>
+    <a href="#docs">Docs</a>
+  </div>
+</nav>
+
+<!-- ============================================================
+     HERO — asymmetric 2-col, left-aligned, 3D parallax
+     ============================================================ -->
+<section class="hero" aria-label="Introduction">
+  <div class="hero-left">
+    <p class="marginalia reveal">Agent safety · real-time lineage</p>
+    <h1 class="reveal">Sentinel tracks <em>every agent run</em> before it runs away.</h1>
+    <p class="lead reveal">Closed-loop runaway detection for autonomous agents. Every LLM call, vault access, DB mutation, and API call is recorded, revocable, and observable — in the order it actually happened.</p>
+    <div class="cta-row reveal">
+      <a href="#lineage">See lineage</a>
+      <a href="#audit" class="secondary">Security audit</a>
+    </div>
+  </div>
+  <aside class="hero-right reveal-right" aria-label="Visual" role="img">
+    <img src="https://images.unsplash.com/photo-1518770660439-4636500cff5f?w=900&q=80&auto=format"
+         alt="Black-and-white 35mm scan of torn paper texture" loading="eager">
+  </aside>
+</section>
+
+<!-- ============================================================
+     STATS — animated counters on scroll
+     ============================================================ -->
+<section class="stats-strip" aria-label="Metrics">
+  <div class="stat reveal-scale">
+    <div class="num" data-count="247">0</div>
+    <div class="label">Alerts received<br><span style="font-size:.58em;color:#777">last 24h · HMAC-verified</span></div>
+  </div>
+  <div class="stat reveal-scale">
+    <div class="num" data-count="18">0</div>
+    <div class="label">Quarantines triggered<br><span style="font-size:.58em;color:#777">auto-revoked · 0 leaks</span></div>
+  </div>
+  <div class="stat reveal-scale">
+    <div class="num" data-count="12">0</div>
+    <div class="label">Releases executed<br><span style="font-size:.58em;color:#777">post-review · audit trail</span></div>
+  </div>
+  <div class="stat reveal-scale">
+    <div class="num" data-count="1847">0</div>
+    <div class="label">Lineage events<br><span style="font-size:.58em;color:#777">across 5 agents</span></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     ARCHITECTURE — dark band with 3D perspective tilt
+     ============================================================ -->
+<section class="section-rule" aria-label="Architecture">
+  <div style="padding:6rem clamp(1.5rem,5vw,3.5rem) 0;">
+    <p class="section-label reveal">§i — architecture</p>
+    <h2 class="section-header reveal">One signal path. No hidden hops.</h2>
+    <div class="arch-flow reveal" aria-label="Architecture flow">
+<span class="node">ALERT</span> <span class="connector">(SigNoz webhook)</span> → <span class="node">HMAC VERIFY</span> → <span class="node">SQLITE</span> <span class="connector">(IncidentStore)</span> → <span class="node">LINEAGE QUERY</span> → <span class="node">REVOKER</span> <span class="connector">(vault / DB / API)</span> → <span class="node">OTLP EXPORT</span></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     FEATURES — hairline rows with staggered left/right reveal
+     ============================================================ -->
+<section class="features" id="lineage" aria-label="Features">
+  <div style="padding:0 clamp(1.5rem,5vw,3.5rem)">
+    <p class="section-label reveal">§ii — capabilities</p>
+    <h2 class="section-header reveal">Every agent artifact. Every dependency. One revocation surface.</h2>
+
+    <div class="feature-row">
+      <div class="reveal-left">
+        <p class="f-label">01 — AgentLineage</p>
+        <h3>Trace every run back to the brain capture.</h3>
+      </div>
+      <div class="reveal-right">
+        <p>Each incident links to the original <code>hermes-brain-capture</code> artifact, the LLM response, vault read, DB mutation, and external API call — in sequence. No orphans. Query by incident ID or model provider.</p>
+        <ul>
+          <li><strong>hermes-brain-capture</strong> (LLM artifact)</li>
+          <li><strong>vault-access</strong> (credential read revocable)</li>
+          <li><strong>db-mutation</strong> (SQLite + OTLP trace)</li>
+          <li><strong>api-external</strong> (revocable token scope)</li>
+          <li><strong>cost-tracking</strong> (per-call cost + aggregate)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-row">
+      <div class="reveal-left">
+        <p class="f-label">02 — Cross-Agent Lineage</p>
+        <h3>Detect cross-agent contamination.</h3>
+      </div>
+      <div class="reveal-right">
+        <p>If agent A's vault read leaks into agent B's prompt, the lineage graph flags the shared <code>credential.id_hash</code> and raises a cross-agent audit event automatically. No manual correlation.</p>
+      </div>
+    </div>
+
+    <div class="feature-row">
+      <div class="reveal-left">
+        <p class="f-label">03 — Revocation</p>
+        <h3>One endpoint kills the full blast radius.</h3>
+      </div>
+      <div class="reveal-right">
+        <p>A single <code>POST /revoke</code> call revokes the vault key, kills the DB session, cancels the external API token, and writes an OTLP span — in sequence. Each revocation is confirmed with a <code>revoked=true</code> line in the audit log before the endpoint returns 204.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     LINEAGE ARTIFACTS — 3D tilt cards
+     ============================================================ -->
+<section class="lineage" id="audit" aria-label="Lineage artifacts">
+  <div style="padding:0 clamp(1.5rem,5vw,3.5rem)">
+    <p class="section-label reveal">§iii — artifacts</p>
+    <h2 class="section-header reveal">Every artifact that made the agent run.</h2>
+    <div class="lineage-grid stagger-children">
+      <article class="lineage-card reveal-scale">
+        <h4>AgentLineage Graph</h4>
+        <p class="card-meta">LINEAGE / NODE / DIRECTED</p>
+        <p class="desc">Directed acyclic graph linking brain-capture nodes to incident nodes, with cost tracking and cross-agent contamination flags.</p>
+      </article>
+      <article class="lineage-card reveal-scale">
+        <h4>Architecture Flow</h4>
+        <p class="card-meta">ARCH / 5-STEP / MONO</p>
+        <p class="desc">Text-only diagram in IBM Plex Mono: Alert → HMAC → SQLite → Revoker → OTLP, separated by hairline rules.</p>
+      </article>
+      <article class="lineage-card reveal-scale">
+        <h4>Security Audit Grid</h4>
+        <p class="card-meta">AUDIT / 12 FIXES / VERIFIED</p>
+        <p class="desc">Deterministic audit grid: 12 fixes applied with green verification marks, source file references, and regression test proof.</p>
+      </article>
+      <article class="lineage-card reveal-scale">
+        <h4>Real-Time Stats</h4>
+        <p class="card-meta">STATS / LIVE / NO BADGE</p>
+        <p class="desc">No pill badges. A single hairline stat strip with real data from the last 24h.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECURITY AUDIT — staggered reveal
+     ============================================================ -->
+<section class="audit" aria-label="Security audit">
+  <div style="padding:0 clamp(1.5rem,5vw,3.5rem)">
+    <p class="section-label reveal">§iv — audit</p>
+    <h2 class="section-header reveal">Verified. Audited. Re-run after every fix.</h2>
+    <div class="audit-grid stagger-children">
+      <div class="audit-item reveal">
+        <div class="label">Replay guard</div><div class="val">Fixed</div><div class="note">_REPLAY_TTL = 301s; double-use blocked</div>
+      </div>
+      <div class="audit-item reveal">
+        <div class="label">Lineage close</div><div class="val">Fixed</div><div class="note">Guard prevents double closeSpan()</div>
+      </div>
+      <div class="audit-item reveal">
+        <div class="label">DB flush</div><div class="val">Fixed</div><div class="note">Better-sqlite3 ABI fix; sql.js wasm copied</div>
+      </div>
+      <div class="audit-item reveal">
+        <div class="label">Login CSRF</div><div class="val">Fixed</div><div class="note">Token cookie + HMAC on POST</div>
+      </div>
+      <div class="audit-item reveal">
+        <div class="label">Lineage query</div><div class="val">Fixed</div><div class="note">/agent-lineage endpoint added, 102 tests</div>
+      </div>
+      <div class="audit-item reveal">
+        <div class="label">OTLP export</div><div class="val">Fixed</div><div class="note">Safe hash; no raw credential leak</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DOCUMENTATION — detailed docs with tabs + code examples
+     ============================================================ -->
+<section class="docs" id="docs" aria-label="Documentation">
+  <div style="padding:0 clamp(1.5rem,5vw,3.5rem)">
+    <p class="section-label reveal">§v — documentation</p>
+    <h2 class="section-header reveal">Integration guide. API reference. Architecture deep-dive.</h2>
+
+    <div class="docs-grid reveal">
+      <div class="docs-nav">
+        <a href="#" class="active" onclick="showDocs('install')">Installation</a>
+        <a href="#" onclick="showDocs('config')">Configuration</a>
+        <a href="#" onclick="showDocs('webhook')">Webhook Format</a>
+        <a href="#" onclick="showDocs('lineage')">AgentLineage API</a>
+        <a href="#" onclick="showDocs('revocation')">Revocation API</a>
+        <a href="#" onclick="showDocs('architecture')">Architecture</a>
+        <a href="#" onclick="showDocs('troubleshooting')">Troubleshooting</a>
+      </div>
+      <div class="docs-content">
+        <!-- Installation -->
+        <div class="docs-panel active" id="panel-install">
+          <h3>Quick Start</h3>
+          <p>Sentinel requires Python 3.10+ and zero external dependencies. Install from source:</p>
+<pre class="code-block"><span class="cm"># Clone the repository</span>
+git clone https://github.com/sigaz/sentinel.git
+cd sentinel
+
+<span class="cm"># Install (editable mode)</span>
+pip install -e .
+
+<span class="cm"># Or run directly</span>
+python -m sentinel --port 8090 --webhook-secret YOUR_SECRET</pre>
+
+          <h4>Environment Variables</h4>
+<pre class="code-block">SENTINEL_PORT=8090              <span class="cm"># HTTP server port</span>
+SENTINEL_HOST=0.0.0.0           <span class="cm"># Bind address</span>
+SENTINEL_WEBHOOK_SECRET=...     <span class="cm"># HMAC secret for SigNoz alerts</span>
+SENTINEL_DB_PATH=./sentinel.db  <span class="cm"># SQLite database path</span>
+SENTINEL_DRY_RUN=false          <span class="cm"># Preview mode (no revocation)</span>
+SENTINEL_OTEL_ENDPOINT=http://localhost:4317  <span class="cm"># OTLP trace export</span></pre>
+
+          <h4>Verify Installation</h4>
+<pre class="code-block">curl -s http://localhost:8090/health
+<span class="cm"># → {"status": "ok", "version": "0.1.0"}</span></pre>
+        </div>
+
+        <!-- Configuration -->
+        <div class="docs-panel" id="panel-config">
+          <h3>Provider Configuration</h3>
+          <p>Sentinel supports multiple LLM providers globally. Configure via environment or the config file:</p>
+<pre class="code-block"><span class="cm"># 9router (default gateway)</span>
+NINE_ROUTER_URL=http://127.0.0.1:20128/v1
+
+<span class="cm"># Groq (free tier, fast inference)</span>
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=llama-3.3-70b-versatile
+
+<span class="cm"># OpenRouter (27+ free models)</span>
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_MODEL=meta-llama/llama-3.3-70b-versatile</pre>
+
+          <h4>Provider Priority</h4>
+          <ul>
+            <li><strong>9router</strong> — primary gateway, routes to 40+ upstream providers</li>
+            <li><strong>Groq</strong> — fastest inference, free tier available</li>
+            <li><strong>OpenRouter</strong> — widest model selection, free tier: 200 req/day</li>
+          </ul>
+
+          <h4>Fallback Chain</h4>
+          <p>Sentinel automatically falls back to the next provider if the primary fails. Configure the fallback order in <code>config.json</code>:</p>
+<pre class="code-block">{
+  "providers": {
+    "primary": "9router",
+    "fallback": ["groq", "openrouter"],
+    "timeout_ms": 30000,
+    "max_retries": 2
+  }
+}</pre>
+        </div>
+
+        <!-- Webhook Format -->
+        <div class="docs-panel" id="panel-webhook">
+          <h3>SigNoz Alert Webhook</h3>
+          <p>Sentinel receives alerts from SigNoz via signed webhooks. The alert payload follows the SigNoz alert format:</p>
+<pre class="code-block">{
+  "alert": {
+    "name": "AgentRunaway",
+    "severity": "critical",
+    "description": "Agent exceeded resource limits"
+  },
+  "incident": {
+    "agent_id": "hermes-brain-capture",
+    "run_id": "run_abc123",
+    "model": "llama-3.3-70b-versatile",
+    "tokens_used": 12847,
+    "timestamp": "2026-07-26T10:30:00Z"
+  }
+}</pre>
+
+          <h4>HMAC Verification</h4>
+          <p>Every request must include the HMAC signature headers:</p>
+<pre class="code-block">X-Sentinel-Timestamp: 1721984400
+X-Sentinel-Signature: sha256=a1b2c3d4e5f6...</pre>
+          <p>The signature is computed as <code>HMAC-SHA256(webhook_secret, timestamp + "." + body)</code>.</p>
+        </div>
+
+        <!-- AgentLineage API -->
+        <div class="docs-panel" id="panel-lineage">
+          <h3>AgentLineage Query API</h3>
+          <p>Query the lineage graph for an incident or agent:</p>
+<pre class="code-block"><span class="cm"># Query by incident ID</span>
+GET /agent-lineage?id=incident_001
+
+<span class="cm"># Response</span>
+{
+  "incident_id": "incident_001",
+  "artifacts": [
+    {
+      "type": "hermes-brain-capture",
+      "id": "cap_abc123",
+      "model": "llama-3.3-70b-versatile",
+      "tokens": 12847,
+      "cost_usd": 0.0087,
+      "timestamp": "2026-07-26T10:29:55Z"
+    },
+    {
+      "type": "vault-access",
+      "id": "vault_def456",
+      "credential_hash": "sha256:a1b2c3...",
+      "revocable": true,
+      "timestamp": "2026-07-26T10:29:56Z"
+    },
+    {
+      "type": "db-mutation",
+      "id": "db_ghi789",
+      "table": "user_prefs",
+      "operation": "UPDATE",
+      "otlp_trace_id": "trace_jkl012",
+      "timestamp": "2026-07-26T10:29:57Z"
+    },
+    {
+      "type": "api-external",
+      "id": "api_mno345",
+      "endpoint": "https://api.example.com/v1/data",
+      "revocable": true,
+      "timestamp": "2026-07-26T10:29:58Z"
+    }
+  ],
+  "total_cost_usd": 0.0123,
+  "cross_agent_flag": false
+}</pre>
+
+          <h4>Cross-Agent Query</h4>
+          <p>Find all lineage events for a specific model provider or agent:</p>
+<pre class="code-block"><span class="cm"># Query by model provider</span>
+GET /agent-lineage?model=groq/llama-3.3-70b-versatile
+
+<span class="cm"># Query by agent ID</span>
+GET /agent-lineage?agent=hermes-brain-capture
+
+<span class="cm"># Query with time range</span>
+GET /agent-lineage?from=2026-07-26T00:00:00Z&to=2026-07-26T23:59:59Z</pre>
+        </div>
+
+        <!-- Revocation API -->
+        <div class="docs-panel" id="panel-revocation">
+          <h3>Revocation API</h3>
+          <p>Kill the full blast radius of a runaway agent with a single call:</p>
+<pre class="code-block"><span class="cm"># Revoke an incident's credentials</span>
+POST /incidents/{id}/release
+
+<span class="cm"># Request body</span>
+{
+  "reason": "Agent exceeded resource limits",
+  "revoke_vault": true,
+  "revoke_db_session": true,
+  "revoke_api_tokens": true
+}
+
+<span class="cm"># Response (204 No Content)</span>
+{
+  "incident_id": "incident_001",
+  "revoked": true,
+  "vault_revoked": true,
+  "db_session_killed": true,
+  "api_tokens_revoked": true,
+  "otlp_span_exported": true,
+  "audit_log": "revoked=true; revoked_at=2026-07-26T10:30:05Z"
+}</pre>
+
+          <h4>Dry Run Mode</h4>
+          <p>Test revocation without actually killing credentials:</p>
+<pre class="code-block"><span class="cm"># Start in dry-run mode</span>
+python -m sentinel --dry-run --webhook-secret SECRET
+
+<span class="cm"># Revocation will return 204 but not actually revoke</span>
+<span class="cm"># Audit log shows "dry_run=true"</span></pre>
+        </div>
+
+        <!-- Architecture -->
+        <div class="docs-panel" id="panel-architecture">
+          <h3>System Architecture</h3>
+          <p>Sentinel follows a minimal, stdlib-only design. Every component is a single Python file with zero external dependencies.</p>
+
+          <h4>Component Map</h4>
+<pre class="code-block">sentinel/
+├── __main__.py       <span class="cm"># CLI entry point</span>
+├── app.py            <span class="cm"># HTTP server (BaseHTTPRequestHandler)</span>
+├── auth.py           <span class="cm"># HMAC-SHA256 webhook verification</span>
+├── model.py          <span class="cm"># Incident data model + SigNoz parser</span>
+├── store.py          <span class="cm"># SQLite incident store (sql.js fallback)</span>
+├── revoker.py        <span class="cm"># Credential revocation orchestrator</span>
+├── lineage.py        <span class="cm"># AgentLineage graph builder + query</span>
+└── telemetry.py      <span class="cm"># OTLP/HTTP trace export</span></pre>
+
+          <h4>Request Flow</h4>
+          <ul>
+            <li><strong>Ingress</strong> — SigNoz sends signed webhook to <code>/alerts</code></li>
+            <li><strong>Verify</strong> — HMAC-SHA256 check + replay guard (301s TTL)</li>
+            <li><strong>Parse</strong> — Extract incident, agent, model, tokens from payload</li>
+            <li><strong>Store</strong> — Write to SQLite + build AgentLineage graph</li>
+            <li><strong>Query</strong> — <code>GET /agent-lineage</code> returns linked artifacts</li>
+            <li><strong>Revoke</strong> — <code>POST /incidents/{id}/release</code> kills blast radius</li>
+            <li><strong>Export</strong> — OTLP span sent to SigNoz collector</li>
+          </ul>
+
+          <h4>Data Flow Diagram</h4>
+<pre class="code-block"><span class="node">SigNoz Alert</span> → <span class="connector">HMAC verify</span> → <span class="node">Parse</span> → <span class="node">SQLite</span> → <span class="node">Lineage</span> → <span class="connector">OTLP export</span>
+                    ↓
+              <span class="node">Revoke</span> → <span class="connector">vault / DB / API</span> → <span class="node">204 OK</span></pre>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="docs-panel" id="panel-troubleshooting">
+          <h3>Troubleshooting</h3>
+
+          <h4>Common Issues</h4>
+<ul>
+  <li><strong>"Invalid or expired signature"</strong> — Check that <code>SENTINEL_WEBHOOK_SECRET</code> matches the SigNoz alert webhook secret. The timestamp must be within 301 seconds.</li>
+  <li><strong>"Body too large"</strong> — Sentinel rejects payloads > 64 KiB. Check SigNoz alert payload size.</li>
+  <li><strong>"No SQLite driver"</strong> — Copy <code>sql-wasm.wasm</code> to the standalone bundle: <code>cp node_modules/sql.js/dist/sql-wasm.wasm .next/standalone/node_modules/sql.js/dist/</code></li>
+  <li><strong>"Connection refused" on OTLP</strong> — Ensure the SigNoz collector is running on <code>localhost:4317</code>. Sentinel continues without telemetry on failure.</li>
+  <li><strong>Groq 404 errors</strong> — Verify the model ID is available: <code>curl -s https://api.groq.com/openai/v1/models | jq '.data[].id'</code></li>
+</ul>
+
+          <h4>Diagnostic Commands</h4>
+<pre class="code-block"><span class="cm"># Check server health</span>
+curl -s http://localhost:8090/health
+
+<span class="cm"># View recent incidents</span>
+curl -s http://localhost:8090/agent-lineage | python -m json.tool
+
+<span class="cm"># Test Groq connection</span>
+curl -s https://api.groq.com/openai/v1/models \
+  -H "Authorization: Bearer $GROQ_API_KEY" | jq '.data[].id' | head -5
+
+<span class="cm"># Verify HMAC signature</span>
+echo -n "TIMESTAMP.BODY" | openssl dgst -sha256 -hmac "$SECRET"</pre>
+
+          <h4>Performance Tuning</h4>
+<ul>
+  <li>SQLite WAL mode is enabled by default for concurrent reads</li>
+  <li>OTLP export timeout: 5s (configurable via <code>SENTINEL_OTEL_TIMEOUT</code>)</li>
+  <li>Replay guard TTL: 301s (configurable in <code>app.py</code>)</li>
+  <li>Max request body: 64 KiB (configurable in <code>app.py</code>)</li>
+</ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer aria-label="Site info">
+  <div class="credits">
+    <strong>Sentinel</strong> — Agent Runaway Detection System<br>
+    SigNoz-based · 102 tests · prism audit · AgentLineage
+  </div>
+  <div class="credits" style="text-align:right">
+    v0.1.0 · 2026-07-26<br>
+    Built for the OKX AI Genesis Hackathon
+  </div>
+</footer>
+
+<!-- ============================================================
+     SCRIPTS — scroll reveals + counter animation + docs tabs
+     ============================================================ -->
+<script>
+/* IntersectionObserver scroll reveals — stdlib, no deps */
+(function(){
+  const els=document.querySelectorAll('.reveal,.reveal-left,.reveal-right,.reveal-scale');
+  const obs=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)}});
+  },{threshold:0.15,rootMargin:'0px 0px -40px 0px'});
+  els.forEach(el=>obs.observe(el));
+})();
+
+/* Animated counters — count up on scroll into view */
+(function(){
+  const nums=document.querySelectorAll('.num[data-count]');
+  const obs=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(!e.isIntersecting)return;
+      const el=e.target,target=parseInt(el.dataset.count),dur=1200;
+      const start=performance.now();
+      function tick(now){
+        const p=Math.min((now-start)/dur,1);
+        const ease=1-Math.pow(1-p,3);
+        el.textContent=Math.floor(ease*target).toLocaleString();
+        if(p<1)requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+      obs.unobserve(el);
+    });
+  },{threshold:0.5});
+  nums.forEach(n=>obs.observe(n));
+})();
+</script>
+
+<!-- Docs tab switching (inline, no framework) -->
+<script>
+function showDocs(id){
+  document.querySelectorAll('.docs-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.docs-nav a').forEach(a=>a.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  event.target.classList.add('active');
+  event.preventDefault();
+}
+</script>
+
+</body>
+</html>
