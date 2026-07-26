@@ -23,7 +23,7 @@ AgentLineage closes the loop: agent → artifact → trace correlation, queryabl
 ## Architecture
 
 ```
-  Agent (Hermes)              SigNoz (ClickHouse)           AgentLineage
+  Agent (any)                  SigNoz (ClickHouse)           AgentLineage
 ┌──────────────────┐      ┌──────────────────────┐      ┌─────────────────────┐
 │ gen_ai.* spans   │─────▷│ signoz_spans         │◁─────│ artifact.touched    │
 │ tool_call spans  │ OTLP │ signoz_metrics       │ SQL  │ lineage graph       │
@@ -64,7 +64,7 @@ graph = ArtifactLineageGraph("/tmp/lineage.db")
 
 # Record an agent touching an artifact
 graph.record(
-    agent_id="hermes-brain-capture",
+    agent_id="my-agent-id",
     artifact="vault://obsidian/ideas.md",
     trace_id="abc123",
     action="written",
@@ -73,7 +73,7 @@ graph.record(
 )
 
 # Query: what did this agent touch?
-effects = graph.effects_of("hermes-brain-capture")
+effects = graph.effects_of("my-agent-id")
 
 # Query: who touched this artifact? (cross-agent lineage)
 causes = graph.causes_of("vault://obsidian/ideas.md")

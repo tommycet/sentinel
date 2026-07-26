@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sentinel — Agent Lineage System</title>
+<title>Sentinel — Agent Lineage System (Global)</title>
 <meta name="description" content="Closed-loop agent runaway detection. Real-time lineage tracking, revocation, observability.">
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700&f[]=general-sans@400,500,600,700&f[]=ibm-plex-mono@400,500,600&display=swap" rel="stylesheet">
@@ -416,9 +416,10 @@ footer .credits strong{font-weight:600;color:var(--ink)}
   <div class="hero-left">
     <p class="marginalia reveal">Agent safety · real-time lineage</p>
     <h1 class="reveal">Sentinel tracks <em>every agent run</em> before it runs away.</h1>
-    <p class="lead reveal">Closed-loop runaway detection for autonomous agents. Every LLM call, vault access, DB mutation, and API call is recorded, revocable, and observable — in the order it actually happened.</p>
+    <p class="lead reveal">Closed-loop runaway detection for autonomous agents in any environment. Supports SigNoz, 9router, Groq, OpenRouter globally. Every LLM call, vault access, DB mutation, and API call is recorded, revocable, and observable.</p>
     <div class="cta-row reveal">
       <a href="#lineage">See lineage</a>
+      <a href="#demo-interactive" style="border-color:#cce832;background:#0c0b09;color:#f6f4f0;">Interactive Demo</a>
       <a href="#audit" class="secondary">Security audit</a>
     </div>
   </div>
@@ -473,12 +474,12 @@ footer .credits strong{font-weight:600;color:var(--ink)}
     <div class="feature-row">
       <div class="reveal-left">
         <p class="f-label">01 — AgentLineage</p>
-        <h3>Trace every run back to the brain capture.</h3>
+        <h3>Trace every run back to the original agent artifact.</h3>
       </div>
       <div class="reveal-right">
-        <p>Each incident links to the original <code>hermes-brain-capture</code> artifact, the LLM response, vault read, DB mutation, and external API call — in sequence. No orphans. Query by incident ID or model provider.</p>
+        <p>Each incident links to the original agent artifact, the LLM response, vault read, DB mutation, and external API call — in sequence. No orphans. Query by incident ID or model provider.</p>
         <ul>
-          <li><strong>hermes-brain-capture</strong> (LLM artifact)</li>
+          <li><strong>agent-artifact</strong> (LLM artifact)</li>
           <li><strong>vault-access</strong> (credential read revocable)</li>
           <li><strong>db-mutation</strong> (SQLite + OTLP trace)</li>
           <li><strong>api-external</strong> (revocable token scope)</li>
@@ -520,7 +521,7 @@ footer .credits strong{font-weight:600;color:var(--ink)}
       <article class="lineage-card reveal-scale">
         <h4>AgentLineage Graph</h4>
         <p class="card-meta">LINEAGE / NODE / DIRECTED</p>
-        <p class="desc">Directed acyclic graph linking brain-capture nodes to incident nodes, with cost tracking and cross-agent contamination flags.</p>
+        <p class="desc">Directed acyclic graph linking agent-artifact nodes to incident nodes, with cost tracking and cross-agent contamination flags.</p>
       </article>
       <article class="lineage-card reveal-scale">
         <h4>Architecture Flow</h4>
@@ -662,7 +663,7 @@ OPENROUTER_MODEL=meta-llama/llama-3.3-70b-versatile</pre>
     "description": "Agent exceeded resource limits"
   },
   "incident": {
-    "agent_id": "hermes-brain-capture",
+    "agent_id": "my-agent-id",
     "run_id": "run_abc123",
     "model": "llama-3.3-70b-versatile",
     "tokens_used": 12847,
@@ -689,7 +690,7 @@ GET /agent-lineage?id=incident_001
   "incident_id": "incident_001",
   "artifacts": [
     {
-      "type": "hermes-brain-capture",
+      "type": "agent-artifact",
       "id": "cap_abc123",
       "model": "llama-3.3-70b-versatile",
       "tokens": 12847,
@@ -729,7 +730,7 @@ GET /agent-lineage?id=incident_001
 GET /agent-lineage?model=groq/llama-3.3-70b-versatile
 
 <span class="cm"># Query by agent ID</span>
-GET /agent-lineage?agent=hermes-brain-capture
+GET /agent-lineage?agent=my-agent-id
 
 <span class="cm"># Query with time range</span>
 GET /agent-lineage?from=2026-07-26T00:00:00Z&to=2026-07-26T23:59:59Z</pre>

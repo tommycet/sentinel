@@ -13,7 +13,7 @@ Sentinel sits between your SigNoz alerting pipeline and your agent infrastructur
 1. **Receives** a signed webhook from SigNoz (HMAC-SHA256 + replay protection)
 2. **Parses** the incident: agent ID, model, token count, vault access, DB mutations
 3. **Quarantines** the agent's credentials (vault keys, DB sessions, API tokens)
-4. **Records** full lineage: brain capture → LLM response → vault read → DB mutation → API call
+4. **Records** full lineage: agent artifact → LLM response → vault read → DB mutation → API call
 5. **Exports** OTLP traces back to SigNoz for dashboards and correlation
 6. **Releases** on human approval via `POST /incidents/{id}/release`
 
@@ -30,7 +30,7 @@ SigNoz Alert Webhook
 ├─────────────────────┤
 │  SQLite Store        │  ← idempotent, WAL mode
 ├─────────────────────┤
-│  AgentLineage Graph  │  ← brain-capture → vault → DB → API
+│  AgentLineage Graph  │  ← agent-artifact → vault → DB → API
 ├─────────────────────┤
 │  Revoker             │  ← vault / DB / API revocation
 ├─────────────────────┤
@@ -92,7 +92,7 @@ Body: <signoz_alert_json>
 ```bash
 GET /agent-lineage?id=incident_001
 GET /agent-lineage?model=groq/llama-3.3-70b-versatile
-GET /agent-lineage?agent=hermes-brain-capture
+GET /agent-lineage?agent=my-agent-id
 GET /agent-lineage?from=2026-07-26T00:00:00Z&to=2026-07-26T23:59:59Z
 ```
 
