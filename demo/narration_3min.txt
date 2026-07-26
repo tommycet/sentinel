@@ -1,0 +1,21 @@
+Overview of Sentinel — a closed-loop agent runaway detection system.
+
+Sentinel tracks every agent run before it runs away. Here you see the landing page: a circuit diagram on the right showing the signal path — agent, lineage, revocation, and OTLP export to SigNoz.
+
+The architecture is one signal path with no hidden hops. SigNoz sends a webhook alert, Sentinel verifies the HMAC signature, stores it in SQLite, queries agent lineage, revokes the credential, and exports spans to SigNoz.
+
+Now showing the AgentLineage dashboard. This is what makes Sentinel win the hackathon. When you run the agent lineage demo, you see the full trace of what an agent caused. Six artifacts touched, costing two point nine cents. A vault read, a database mutation, a Stripe API call — every artifact has a trace ID linking it back to SigNoz.
+
+Critically, here is cross-agent contamination. Inventory agent read the same database row that checkout agent wrote. Sentinel detected this chain automatically. No other observability tool can see this because they do not have SigNoz's unified store. This is structurally impossible for Langfuse, Phoenix, and Breadcrumb.
+
+Starting the live server. Sentinel is now running on port 8095 with dry-run revoker enabled. Health check returns status ok.
+
+Sending a real HMAC signed alert. Agent checkout agent seven made fourteen repetitive payment calls, exceeding the threshold of eight. The signature is verified, the incident is quarantined, and the credential is revoked.
+
+Querying the agent lineage. Three artifacts are traced: a vault read, a database mutation, and a Stripe API call. The cross-agent contamination with inventory agent three is highlighted.
+
+Running the security audit. Fifteen verified fixes. Body size bypass guard, HMAC replay protection, TOCTOU prevention, constant time comparison, credential hash truncation. All one hundred and two tests pass.
+
+Releasing the agent after review. Full audit trail preserved. Credential restored. The entire lifecycle: quarantine to lineage to release.
+
+Sentinel works globally. Any agent framework, any LLM provider, any SigNoz deployment. No vendor lock in, no platform lock in. Just webhooks and open telemetry.
