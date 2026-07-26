@@ -83,6 +83,8 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             # F4: drain any leftover bytes from the socket so they don't
             # pollute the next keep-alive request.
             self.rfile.read(65536)
+            if len(body) < cl:
+                raise ValueError(f"Incomplete body: got {len(body)} but Content-Length says {cl}")
 
         if len(body) > MAX_BODY_BYTES:
             raise ValueError(f"Body too large: {len(body)} > {MAX_BODY_BYTES}")
