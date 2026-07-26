@@ -1,0 +1,15 @@
+This is a 3-minute walkthrough of Sentinel, an agent-runaway detection system built for the OKX AI Genesis Hackathon.
+
+The page opens with the hero: an asymmetric editorial layout with a dark photographic plate on the right, and the headline "Sentinel tracks every agent run before it runs away" on the left.
+
+Below the hero, a single hairline stat strip shows four real-time metrics: 247 alerts received, 18 quarantines triggered, 12 releases executed, and 1,847 lineage events tracked across 5 agents.
+
+In the architecture section, the signal flow is shown in IBM Plex Mono: Alert passes through HMAC verification, SQLite storage, lineage query, revocation, and OTLP export. This is a single path with no hidden hops.
+
+The capabilities section describes AgentLineage: tracing brain-capture artifacts through vault access, database mutations, external API calls, and cost tracking. Cross-agent contamination is detected automatically.
+
+The security audit grid shows 12 verified fixes applied, including replay guard, lineage close protection, and OTLP export safety.
+
+The documentation section provides installation instructions, provider configuration for Groq and OpenRouter, webhook format documentation, AgentLineage API reference, revocation endpoint details, architecture notes, and troubleshooting commands.
+
+Sentinel runs entirely on Python stdlib, supports multiple providers globally, and delivers a professional anti-slop design using Cabinet Grotesk and General Sans typography.
