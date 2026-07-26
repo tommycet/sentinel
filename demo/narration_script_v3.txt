@@ -1,0 +1,17 @@
+Welcome to Sentinel — a closed-loop agent runaway detection system built for the SigNoz hackathon.
+
+Sentinel detects runaway AI agents from SigNoz OpenTelemetry signals, quarantines their credentials, and records evidence — turning observability into enforcement.
+
+The system pipeline is straightforward. An alert arrives through a SigNoz webhook, passes HMAC SHA-256 verification, gets stored in a SQLite incident database, queries the AgentLineage graph, triggers the credential revoker for vault access and database sessions and API tokens, and finally exports OTLP traces back to the SigNoz collector. One signal path with no hidden hops.
+
+The key capability is AgentLineage. Every incident links to the original Hermes brain capture artifact plus the LLM response, vault read, database mutation, and external API call in exact chronological sequence. Query by incident ID or model provider. If agent A's vault read leaks into agent B's prompt through an unintended context leak, the lineage graph flags the shared credential hash and raises a cross-agent contamination flag automatically. No manual correlation required.
+
+The revocation protocol is a single POST request. The revocation endpoint kills the full blast radius — vault key, database session, external API token, OTLP span export. Each revocation is confirmed with a revoked equals true line in the audit log before the endpoint returns 204 no content.
+
+The project has fourteen security fixes verified through a prism audit with zero remaining findings. The replay guard with three hundred one second time-to-live, lineage close protection preventing double span closure, SQLite WAL with atomic release, HMAC replay protection, constant-time signature comparison, and safe credential hashing in telemetry — all verified and passing all one hundred eleven tests.
+
+Sentinel supports multiple LLM providers globally. Nine Router handles forty plus upstream providers. Groq provides free tier inference with llama three-point-three. Open Router supports twenty-seven plus free models. The system falls back automatically between providers.
+
+The hackathon differentiator is the structural advantage. AgentLineage is impossible for LLM-only competitors like Langfuse, Phoenix, or Breadcrumbs because they lack SigNoz's unified telemetry store. Sentinel uses the exact same OpenTelemetry pipeline as the agents it monitors, so lineage is a trace lookup, not a separate infrastructure. That is the core architectural advantage.
+
+Thank you for watching the Sentinel demo for the SigNoz hackathon.
