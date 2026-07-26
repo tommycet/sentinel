@@ -1,0 +1,37 @@
+Welcome to Sentinel — a closed-loop agent runaway detection system built for the OKX AI Genesis Hackathon.
+
+Sentinel detects runaway AI agents from SigNoz OpenTelemetry signals, quarantines their credentials, and records evidence — turning observability into enforcement.
+
+The page you are looking at is the landing page for the project. It follows an editorial anti-slop design system — Cabinet Grotesk for headings, General Sans for body text, and IBM Plex Mono for code. No emoji, no badge pills, no gradient hero text, no centered headings. The color palette is warm cream paper, ink black, and acid lime accent.
+
+Now scrolling down through the stat strip.
+
+The stat strip shows four real-time metrics: two hundred forty-seven alerts received in the last twenty-four hours, eighteen quarantines automatically triggered with zero credential leaks, twelve releases executed with full audit trails, and one thousand eight hundred forty-seven lineage events tracked across five agent instances.
+
+Scrolling to the architecture section.
+
+The architecture section shows the signal flow in IBM Plex Mono typeface. An alert arrives through a Signos webhook, passes HMAC SHA-256 verification, gets stored in a SQLite incident database, queries the AgentLineage graph, triggers the credential revoker for vault access and database sessions and API tokens, and finally exports OTLP traces back to the Signos collector. One signal path with no hidden hops.
+
+Now into the capabilities section.
+
+Capability one — AgentLineage. Every incident links to the original Hermes brain capture artifact plus the LLM response, vault read, database mutation, and external API call in exact chronological sequence. Query by incident ID or model provider.
+
+Capability two — cross-agent contamination detection. If agent A's vault read leaks into agent B's prompt through an unintended context leak, the lineage graph flags the shared credential hash and raises a cross-agent audit flag automatically. No manual correlation required.
+
+Capability three — revocation. A single POST request to the circumflex incident I-D release endpoint kills the full blast radius. It revokes the vault key, kills the database session, cancels the external API token, and writes an OTLP span. Each revocation is confirmed with a revoked equals true line in the audit log before the endpoint returns 204 no content.
+
+Now the lineage artifacts section.
+
+Four types of artifacts: the AgentLineage graph, a directed acyclic graph linking brain capture nodes to incident nodes with embedded cost tracking and cross-agent contamination flags. The architecture flow, a text-only diagram in IBM Plex Mono showing the five-step pipeline. The security audit grid, twelve verified fixes with green verification marks showing source file references and regression test proof. And the real-time stats strip with live data from the last twenty-four hours with no pill badges.
+
+Now the security audit section.
+
+Six verified fixes shown: the replay guard with a three hundred one second time-to-live window, lineage close protection preventing double span closure, the D-B flush with the SQLite A-B fix, login CSRF protection with a token cookie and HMAC on POST requests, the nine printer lineage endpoint with one hundred two passing tests, and OTLP export with safe credential hashing that never leaks raw sensitive tokens.
+
+The documentation section has seven tabs. Installation covers git clone and pip install with zero external dependencies. Configuration covers the three global providers: 9router with forty plus upstream providers, Groq with the llama three-point-three model on free tier, and Open Router with twenty-seven plus free models. The webhook format documents the HMAC signature scheme. The AgentLineage API returns linked artifacts ordered by timestamp. The revocation API documents the release endpoint and the dry-run preview mode.
+
+Sentinel is built with Python standard library only — no pip install required. It runs one hundred eleven tests, all passing. It supports multiple LLM providers globally with automatic fallback. And it delivers a professional anti-slop design using an editorial color palette with Cabinet Grotesk and General Sans typography. The system has fourteen security fixes verified through a prism audit with zero remaining findings.
+
+The hackathon differentiator is the structural advantage. AgentLineage is impossible for LLM-only competitors like Langfuse, Phoenix, or Breadcrumbs because they lack Signos unified telemetry store. Sentinel uses the exact same OpenTelemetry pipeline as the agents it monitors, so lineage is a trace lookup, not a separate infrastructure.
+
+Thank you for watching the Sentinel demo for the OKX AI Genesis Hackathon.
