@@ -1,0 +1,15 @@
+Overview of Sentinel — a global agent safety system.
+
+Here's the live landing page. The circuit diagram shows the full signal flow: agent flows through lineage, gets quarantined, then revocation and OTLP export activate. This is not limited to any vendor — 9router, Groq, OpenRouter, any agent framework.
+
+Real-time stats: 247 alerts processed, cross-agent contamination detected, full artifact lineage tracked. The architecture is one signal path with no hidden hops: webhook → HMAC verification → SQLite storage → lineage query → revocation → OTLP.
+
+Security audit: 15 verified fixes, 102 passing tests. This includes the critical body-size bypass guard — if a client sends a body shorter than the declared Content-Length, the request is rejected immediately.
+
+Now demonstrating the live system. The server is running. Health check at /livez returns status ok.
+
+Sending a real HMAC-signed alert. The agent checkout-agent-7 made 14 repetitive payment calls — exceeding the threshold of 8. Signature computed with SHA-256. The server responds: quarantined, incident created.
+
+Querying agent lineage. Three artifacts traced: a vault read, a database mutation, and a Stripe API call. Cross-agent contamination: inventory-agent-3 read the same database row. This is the differentiator — no other tool traces cross-agent effects.
+
+Releasing after review: full audit trail preserved. Credential restored. 102 tests verified. The system is global — works with any agent framework and any provider.
