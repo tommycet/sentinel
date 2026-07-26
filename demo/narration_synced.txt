@@ -1,0 +1,11 @@
+Sentinel: closed-loop agent runaway detection. Not specific to any vendor — works with 9router, Groq, OpenRouter, and any agent system. Here you see the live dashboard. The right side shows the full circuit: agent to lineage to revocation to OTLP SigNoz export.
+
+Here are the core capabilities. Complete artifact lineage: every agent run, every vault read, every DB mutation — all recorded in sequence. Next is the differentiator: cross-agent contamination detection. When agent A writes a file and agent B reads it then goes runaway, Sentinel traces it back to agent A. No other observability tool can do this. One endpoint kills the full blast radius.
+
+This is the architecture. One signal path, no hidden hops. SigNoz sends an alert webhook, Sentinel verifies via HMAC SHA-256, stores it in SQLite WAL, queries lineage for blast radius, revokes credentials through the HTTP revoker, and exports spans to OPC.
+
+The security audit grid: 15 fixes verified. Body size bypass guard, HMAC replay protection with seen signatures TTL, TOCTOU prevention via atomic claim for release, Content-Length enforcement, route query-agnostic parsing, constant-time HMAC comparison, credential hash truncated in logs. 102 tests pass the full suite.
+
+Documentation: installation, configuration, webhook format, AgentLineage API, revocation API, architecture deep dive, troubleshooting. Everything to integrate Sentinel into any agent system in under five minutes.
+
+Sentinel works globally. Any agent framework, any LLM provider, any SigNoz deployment. No vendor lock-in, no platform lock-in. Just webhooks and open telemetry.
