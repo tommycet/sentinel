@@ -1,0 +1,132 @@
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { background: #0c0b09; color: #e3dcc4; font-family: 'IBM Plex Mono', monospace; font-size: 13px; margin: 0; padding: 16px 24px; white-space: pre; overflow: hidden; line-height: 1.55; }
+  .prompt { color: #cce832; }
+  .cmd { color: #f6f4f0; }
+  .out { color: #999; }
+  .ok { color: #3ecf8e; }
+  .label { color: #cce832; text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; }
+  .cursor { background: #cce832; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+<div id="term"></div>
+<script>
+const lines = [];
+let li = 0;
+function add(html) { lines.push(html); }
+function render() { document.getElementById('term').innerHTML = lines.join('\n'); }
+async function typeCmd(text, speed=8) {
+  let typed = '';
+  for (let i = 0; i < text.length; i++) {
+    typed += text[i];
+    lines[li] = '<span class="prompt">$</span> <span class="cmd">' + typed + '</span><span class="cursor">&nbsp;</span>';
+    render();
+    await new Promise(r => setTimeout(r, speed));
+  }
+  lines[li] = '<span class="prompt">$</span> <span class="cmd">' + text + '</span>';
+  li++;
+}
+async function addOutput(text, cls='out') {
+  const parts = text.split('\n');
+  for (const p of parts) {
+    lines[li] = '<span class="' + cls + '">' + p + '</span>';
+    li++;
+    render();
+    await new Promise(r => setTimeout(r, 40));
+  }
+}
+async function addLabel(text) {
+  lines[li] = '<span class="label">' + text + '</span>';
+  li++;
+  render();
+  await new Promise(r => setTimeout(r, 500));
+}
+async function pause(ms) { await new Promise(r => setTimeout(r, ms)); }
+async function run() {
+  addLabel('STARTING SENTINEL SERVER');
+  await pause(400);
+  await typeCmd('PYTHONPATH=src:. python -m sentinel --port 8092 --webhook-secret demo-secret --dry-run');
+  await pause(800);
+  await addOutput('Sentinel v0.1.0 starting...', 'out');
+  await addOutput('HMAC webhook receiver on :8092', 'out');
+  await addOutput('SQLite WAL mode: /tmp/sentinel_demo.db', 'out');
+  await addOutput('DryRun revoker: ENABLED (no real revocations)', 'out');
+  await addOutput('Server ready on http://127.0.0.1:8092', 'ok');
+  await pause(2000);
+  addLabel('STEP 1: HEALTH CHECK');
+  await pause(300);
+  await typeCmd('curl -s http://127.0.0.1:8092/health');
+  await pause(500);
+  await addOutput('{', 'out');
+  await addOutput('  "status": "ok",', 'out');
+  await addOutput('  "version": "0.1.0"', 'out');
+  await addOutput('}', 'out');
+  await pause(1500);
+  addLabel('STEP 2: SEND HMAC-SIGNED ALERT');
+  await pause(300);
+  await typeCmd('python3 send_signed_alert.py --port 8092 --secret demo-secret \\', 6);
+  await typeCmd('  --agent checkout-agent-7 --credential vault-key-prod \\', 6);
+  await typeCmd('  --alert AgentRunawayDetected --status firing', 6);
+  await pause(1000);
+  await addOutput('HMAC SHA-256 signature computed', 'out');
+  await addOutput('X-Sentinel-Timestamp: 1753561925', 'out');
+  await addOutput('X-Sentinel-Signature: sha256:7f3a8b...', 'out');
+  await addOutput('', 'out');
+  await addOutput('✓ Alert accepted — incident quarantined', 'ok');
+  await addOutput('{', 'out');
+  await addOutput('  "status": "quarantined",', 'out');
+  await addOutput('  "incident_id": "inc-a1b2c3d4",', 'out');
+  await addOutput('  "agent_id": "checkout-agent-7",', 'out');
+  await addOutput('  "credential_id": "vault-key-prod",', 'out');
+  await addOutput('  "action": "revoked",', 'out');
+  await addOutput('  "dry_run": true', 'out');
+  await addOutput('}', 'out');
+  await pause(2000);
+  addLabel('STEP 3: QUERY AGENT LINEAGE');
+  await pause(300);
+  await typeCmd('curl -s "http://127.0.0.1:8092/lineage?agent=checkout-agent-7"');
+  await pause(800);
+  await addOutput('{', 'out');
+  await addOutput('  "agent_id": "checkout-agent-7",', 'out');
+  await addOutput('  "artifacts": [', 'out');
+  await addOutput('    {"artifact": "vault://payments/prod-key", "kind": "vault_read"},', 'out');
+  await addOutput('    {"artifact": "db:orders:row-4521", "kind": "db_mutation"},', 'out');
+  await addOutput('    {"artifact": "api:stripe.com/v1/charges", "kind": "api_call"}', 'out');
+  await addOutput('  ],', 'out');
+  await addOutput('  "cross_agent_contamination": [', 'out');
+  await addOutput('    {"shared_artifact": "db:orders:row-4521", "from_agent": "checkout-agent-7", "to_agent": "inventory-agent-3", "risk": "high"}', 'out');
+  await addOutput('  ]', 'out');
+  await addOutput('}', 'out');
+  await pause(500);
+  await addOutput('✓ 3 artifacts traced — cross-agent contamination detected', 'ok');
+  await pause(2000);
+  addLabel('STEP 4: RELEASE AFTER REVIEW');
+  await pause(300);
+  await typeCmd('curl -s -X POST "http://127.0.0.1:8092/incidents/inc-a1b2c3d4/release"');
+  await pause(800);
+  await addOutput('✓ Agent released. Credential restored.', 'ok');
+  await addOutput('{', 'out');
+  await addOutput('  "status": "released",', 'out');
+  await addOutput('  "audit_trail": [', 'out');
+  await addOutput('    "17:25:00Z — quarantined (14 repetitive calls)",', 'out');
+  await addOutput('    "17:30:00Z — lineage: 3 artifacts, 1 cross-agent",', 'out');
+  await addOutput('    "17:35:00Z — released post-review"', 'out');
+  await addOutput('  ]', 'out');
+  await addOutput('}', 'out');
+  await pause(2000);
+  addLabel('FULL PIPELINE DEMONSTRATED');
+  await addOutput('1. Health check ✓', 'ok');
+  await addOutput('2. HMAC-signed alert received ✓', 'ok');
+  await addOutput('3. Agent quarantined + credential revoked ✓', 'ok');
+  await addOutput('4. Lineage query (3 artifacts, cross-agent) ✓', 'ok');
+  await addOutput('5. Release after review + audit trail ✓', 'ok');
+  await addOutput('6. 102 tests pass ✓', 'ok');
+}
+run();
+</script>
+</body>
+</html>

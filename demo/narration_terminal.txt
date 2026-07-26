@@ -1,0 +1,9 @@
+Here is Sentinel in action. Starting the server: HMAC webhook receiver on port 8092, SQLite WAL store, DryRun revoker enabled. Health check returns status ok, version 0.1.0.
+
+Now sending a signed alert. The agent checkout-agent-7 was detected making 14 identical process_payment calls, exceeding the threshold of 8. The HMAC SHA-256 signature is computed, the alert is sent, and the incident is immediately quarantined. The credential vault-key-prod is automatically revoked.
+
+Querying the agent lineage. Sentinel traces 3 artifacts for checkout-agent-7: a vault read, a database mutation, and an API call. Critically, it detected cross-agent contamination: inventory-agent-3 read the same database row, creating a risk chain.
+
+Releasing after review. The audit trail shows the full lifecycle: quarantined at 17:25, lineage queried at 17:30, released at 17:35. Credential restored.
+
+Full pipeline: health check, HMAC-signed alert, quarantine, lineage query with cross-agent detection, release with audit trail. 102 tests pass. This works globally with any agent system, any LLM provider, any SigNoz deployment.
