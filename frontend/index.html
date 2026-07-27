@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sentinel — Agent Lineage System (Global)</title>
+<title>Sentinel — Agent Lineage System</title>
 <meta name="description" content="Closed-loop agent runaway detection. Real-time lineage tracking, revocation, observability.">
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700&f[]=general-sans@400,500,600,700&f[]=ibm-plex-mono@400,500,600&display=swap" rel="stylesheet">
@@ -122,15 +122,15 @@ nav .nav-links a:hover{color:var(--ink)}
 }
 .hero-right{
   position:relative;overflow:hidden;
-  background:linear-gradient(160deg,#151310 0%,#0a0907 100%);
+  background:linear-gradient(160deg,#1a1814 0%,#0c0b09 100%);
   transform:rotateY(-2deg) translateZ(0);
   transform-origin:left center;
   transition:transform .6s var(--ease-out);
 }
 .hero-right:hover{transform:rotateY(0deg) translateZ(8px)}
 .hero-right img{
-  position:relative;width:100%;height:100%;object-fit:cover;
-  opacity:.88;
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  opacity:.85;mix-blend-mode:multiply;
 }
 .hero-left .marginalia{
   font-family:'IBM Plex Mono',monospace;font-size:.65rem;text-transform:uppercase;
@@ -416,16 +416,15 @@ footer .credits strong{font-weight:600;color:var(--ink)}
   <div class="hero-left">
     <p class="marginalia reveal">Agent safety · real-time lineage</p>
     <h1 class="reveal">Sentinel tracks <em>every agent run</em> before it runs away.</h1>
-    <p class="lead reveal">Closed-loop runaway detection for autonomous agents in any environment. Supports SigNoz, 9router, Groq, OpenRouter globally. Every LLM call, vault access, DB mutation, and API call is recorded, revocable, and observable.</p>
+    <p class="lead reveal">Closed-loop runaway detection for autonomous agents. Every LLM call, vault access, DB mutation, and API call is recorded, revocable, and observable — in the order it actually happened.</p>
     <div class="cta-row reveal">
       <a href="#lineage">See lineage</a>
-      <a href="#demo-interactive" style="border-color:#cce832;background:#0c0b09;color:#f6f4f0;">Interactive Demo</a>
       <a href="#audit" class="secondary">Security audit</a>
     </div>
   </div>
-  <aside class="hero-right reveal-right" aria-label="Visual" role="img" style="background:#111110;display:flex;align-items:center;justify-content:center;">
-    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 700'%3E%3Cdefs%3E%3ClinearGradient id='lg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23cce832' stop-opacity='.8'/%3E%3Cstop offset='100%25' stop-color='%23e3dcc4' stop-opacity='.4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='%23181816'%3E%3Ccircle cx='50' cy='50' r='1.2'/%3E%3Ccircle cx='150' cy='50' r='1.2'/%3E%3Ccircle cx='250' cy='50' r='1.2'/%3E%3Ccircle cx='350' cy='50' r='1.2'/%3E%3Ccircle cx='450' cy='50' r='1.2'/%3E%3Ccircle cx='550' cy='50' r='1.2'/%3E%3Ccircle cx='650' cy='50' r='1.2'/%3E%3Ccircle cx='750' cy='50' r='1.2'/%3E%3Ccircle cx='850' cy='50' r='1.2'/%3E%3Ccircle cx='50' cy='150' r='1.2'/%3E%3Ccircle cx='250' cy='150' r='1.2'/%3E%3Ccircle cx='450' cy='150' r='1.2'/%3E%3Ccircle cx='650' cy='150' r='1.2'/%3E%3Ccircle cx='850' cy='150' r='1.2'/%3E%3Ccircle cx='50' cy='250' r='1.2'/%3E%3Ccircle cx='350' cy='250' r='1.2'/%3E%3Ccircle cx='550' cy='250' r='1.2'/%3E%3Ccircle cx='750' cy='250' r='1.2'/%3E%3Ccircle cx='50' cy='350' r='1.2'/%3E%3Ccircle cx='250' cy='350' r='1.2'/%3E%3Ccircle cx='550' cy='350' r='1.2'/%3E%3Ccircle cx='750' cy='350' r='1.2'/%3E%3Ccircle cx='150' cy='450' r='1.2'/%3E%3Ccircle cx='350' cy='450' r='1.2'/%3E%3Ccircle cx='550' cy='450' r='1.2'/%3E%3Ccircle cx='50' cy='550' r='1.2'/%3E%3Ccircle cx='250' cy='550' r='1.2'/%3E%3Ccircle cx='450' cy='550' r='1.2'/%3E%3Ccircle cx='650' cy='550' r='1.2'/%3E%3C/g%3E%3Cline x1='100' y1='180' x2='800' y2='350' stroke='url(%23lg)' stroke-width='2' stroke-opacity='.8'/%3E%3Cline x1='150' y1='280' x2='700' y2='180' stroke='%23e3dcc4' stroke-width='.5' stroke-opacity='.2'/%3E%3Cline x1='300' y1='220' x2='600' y2='380' stroke='%23cce832' stroke-width='.75' stroke-opacity='.25'/%3E%3Ccircle cx='150' cy='220' r='12' fill='%23cce832' fill-opacity='.12' stroke='%23cce832' stroke-width='1'/%3E%3Ccircle cx='150' cy='220' r='4' fill='%23cce832'/%3E%3Ctext x='150' y='255' text-anchor='middle' fill='%23e3dcc4' font-size='9' font-family='monospace'%3EAGENT%3C/text%3E%3Ccircle cx='350' cy='260' r='12' fill='%23e3dcc4' fill-opacity='.08' stroke='%23e3dcc4' stroke-width='1'/%3E%3Ccircle cx='350' cy='260' r='4' fill='%23e3dcc4'/%3E%3Ctext x='350' y='295' text-anchor='middle' fill='%23e3dcc4' font-size='9' font-family='monospace'%3ELINEAGE%3C/text%3E%3Ccircle cx='520' cy='300' r='12' fill='%23cce832' fill-opacity='.12' stroke='%23cce832' stroke-width='1'/%3E%3Ccircle cx='520' cy='300' r='4' fill='%23cce832'/%3E%3Ctext x='520' y='335' text-anchor='middle' fill='%23e3dcc4' font-size='9' font-family='monospace'%3EREVOCATION%3C/text%3E%3Ccircle cx='680' cy='330' r='12' fill='%23e3dcc4' fill-opacity='.08' stroke='%23e3dcc4' stroke-width='1'/%3E%3Ccircle cx='680' cy='330' r='4' fill='%23e3dcc4'/%3E%3Ctext x='680' y='365' text-anchor='middle' fill='%23e3dcc4' font-size='9' font-family='monospace'%3EOTLP%3C/text%3E%3Ctext x='450' y='620' text-anchor='middle' fill='%23777' font-size='11' font-family='monospace'%3EAGENT SAFETY · CLOSED-LOOP · REAL-TIME%3C/text%3E%3C/svg%3E"
-         alt="Agent safety circuit" style="width:100%;height:100%;object-fit:cover;opacity:.85;" loading="eager">
+  <aside class="hero-right reveal-right" aria-label="Visual" role="img">
+    <img src="https://images.unsplash.com/photo-1518770660439-4636500cff5f?w=900&q=80&auto=format"
+         alt="Black-and-white 35mm scan of torn paper texture" loading="eager">
   </aside>
 </section>
 
@@ -474,12 +473,12 @@ footer .credits strong{font-weight:600;color:var(--ink)}
     <div class="feature-row">
       <div class="reveal-left">
         <p class="f-label">01 — AgentLineage</p>
-        <h3>Trace every run back to the original agent artifact.</h3>
+        <h3>Trace every run back to the brain capture.</h3>
       </div>
       <div class="reveal-right">
-        <p>Each incident links to the original agent artifact, the LLM response, vault read, DB mutation, and external API call — in sequence. No orphans. Query by incident ID or model provider.</p>
+        <p>Each incident links to the original <code>hermes-brain-capture</code> artifact, the LLM response, vault read, DB mutation, and external API call — in sequence. No orphans. Query by incident ID or model provider.</p>
         <ul>
-          <li><strong>agent-artifact</strong> (LLM artifact)</li>
+          <li><strong>hermes-brain-capture</strong> (LLM artifact)</li>
           <li><strong>vault-access</strong> (credential read revocable)</li>
           <li><strong>db-mutation</strong> (SQLite + OTLP trace)</li>
           <li><strong>api-external</strong> (revocable token scope)</li>
@@ -521,7 +520,7 @@ footer .credits strong{font-weight:600;color:var(--ink)}
       <article class="lineage-card reveal-scale">
         <h4>AgentLineage Graph</h4>
         <p class="card-meta">LINEAGE / NODE / DIRECTED</p>
-        <p class="desc">Directed acyclic graph linking agent-artifact nodes to incident nodes, with cost tracking and cross-agent contamination flags.</p>
+        <p class="desc">Directed acyclic graph linking brain-capture nodes to incident nodes, with cost tracking and cross-agent contamination flags.</p>
       </article>
       <article class="lineage-card reveal-scale">
         <h4>Architecture Flow</h4>
@@ -663,7 +662,7 @@ OPENROUTER_MODEL=meta-llama/llama-3.3-70b-versatile</pre>
     "description": "Agent exceeded resource limits"
   },
   "incident": {
-    "agent_id": "my-agent-id",
+    "agent_id": "hermes-brain-capture",
     "run_id": "run_abc123",
     "model": "llama-3.3-70b-versatile",
     "tokens_used": 12847,
@@ -690,7 +689,7 @@ GET /agent-lineage?id=incident_001
   "incident_id": "incident_001",
   "artifacts": [
     {
-      "type": "agent-artifact",
+      "type": "hermes-brain-capture",
       "id": "cap_abc123",
       "model": "llama-3.3-70b-versatile",
       "tokens": 12847,
@@ -730,7 +729,7 @@ GET /agent-lineage?id=incident_001
 GET /agent-lineage?model=groq/llama-3.3-70b-versatile
 
 <span class="cm"># Query by agent ID</span>
-GET /agent-lineage?agent=my-agent-id
+GET /agent-lineage?agent=hermes-brain-capture
 
 <span class="cm"># Query with time range</span>
 GET /agent-lineage?from=2026-07-26T00:00:00Z&to=2026-07-26T23:59:59Z</pre>
