@@ -423,8 +423,24 @@ footer .credits strong{font-weight:600;color:var(--ink)}
     </div>
   </div>
   <aside class="hero-right reveal-right" aria-label="Visual" role="img">
-    <img src="https://images.unsplash.com/photo-1518770660439-4636500cff5f?w=900&q=80&auto=format"
-         alt="Black-and-white 35mm scan of torn paper texture" loading="eager">
+    <svg viewBox="0 0 400 280" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+      <rect width="400" height="280" fill="#0c0b09" rx="8"/>
+      <text x="200" y="40" text-anchor="middle" fill="#cce832" font-family="IBM Plex Mono,monospace" font-size="11" font-weight="700">AGENT</text>
+      <rect x="155" y="50" width="90" height="24" rx="4" fill="#1a1a1a" stroke="#cce832" stroke-width="1"/>
+      <text x="200" y="67" text-anchor="middle" fill="#e3dcc4" font-family="IBM Plex Mono,monospace" font-size="10">checkout-agent-7</text>
+      <line x1="200" y1="74" x2="200" y2="100" stroke="#cce832" stroke-width="1.5"/>
+      <text x="200" y="115" text-anchor="middle" fill="#888" font-family="IBM Plex Mono,monospace" font-size="9">HMAC</text>
+      <line x1="200" y1="125" x2="200" y2="145" stroke="#cce832" stroke-width="1.5"/>
+      <text x="200" y="160" text-anchor="middle" fill="#888" font-family="IBM Plex Mono,monospace" font-size="9">SQLite WAL</text>
+      <line x1="200" y1="170" x2="100" y2="200" stroke="#cce832" stroke-width="1"/>
+      <line x1="200" y1="170" x2="300" y2="200" stroke="#cce832" stroke-width="1"/>
+      <text x="100" y="218" text-anchor="middle" fill="#cce832" font-family="IBM Plex Mono,monospace" font-size="10">LINEAGE</text>
+      <text x="300" y="218" text-anchor="middle" fill="#ff6b6b" font-family="IBM Plex Mono,monospace" font-size="10">REVOCATION</text>
+      <line x1="100" y1="228" x2="100" y2="250" stroke="#cce832" stroke-width="1"/>
+      <line x1="300" y1="228" x2="300" y2="250" stroke="#ff6b6b" stroke-width="1"/>
+      <text x="100" y="268" text-anchor="middle" fill="#e3dcc4" font-family="IBM Plex Mono,monospace" font-size="9">OTLP → SigNoz</text>
+      <text x="300" y="268" text-anchor="middle" fill="#e3dcc4" font-family="IBM Plex Mono,monospace" font-size="9">Vault / DB / API</text>
+    </svg>
   </aside>
 </section>
 
@@ -473,7 +489,7 @@ footer .credits strong{font-weight:600;color:var(--ink)}
     <div class="feature-row">
       <div class="reveal-left">
         <p class="f-label">01 — AgentLineage</p>
-        <h3>Trace every run back to the brain capture.</h3>
+        <h3>Trace every run back to the original agent artifact.</h3>
       </div>
       <div class="reveal-right">
         <p>Each incident links to the original <code>hermes-brain-capture</code> artifact, the LLM response, vault read, DB mutation, and external API call — in sequence. No orphans. Query by incident ID or model provider.</p>
@@ -662,7 +678,7 @@ OPENROUTER_MODEL=meta-llama/llama-3.3-70b-versatile</pre>
     "description": "Agent exceeded resource limits"
   },
   "incident": {
-    "agent_id": "hermes-brain-capture",
+    "agent_id": "checkout-agent-7",
     "run_id": "run_abc123",
     "model": "llama-3.3-70b-versatile",
     "tokens_used": 12847,

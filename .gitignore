@@ -23,3 +23,8 @@ node_modules/
 demo/videos/sentinel_demo_final.mp4
 demo/audio/narration.mp3
 frontend/node_modules/
+demo/videos/*.mp4
+demo/videos/*.webm
+demo/videos/*.jpg
+demo/videos/*.png
+!demo/videos/README.md

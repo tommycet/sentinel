@@ -42,11 +42,11 @@ def run_lineage_demo(graph: ArtifactLineageGraph | None = None) -> ArtifactLinea
     g = graph or ArtifactLineageGraph(":memory:")
 
     # Scenario:  Hermes cron "brain-capture" touches 5 artifacts in one run.
-    trace_id = _shr("brain-capture-run-001")
+    trace_id = _shr("lineage-run-001")
 
     # 1. Agent calls 9router (LLM gateway) — cost recorded
     g.record(
-        agent_id="hermes-brain-capture",
+        agent_id="agent-lineage-test",
         artifact="9router:gpt-4o-mini",
         trace_id=trace_id,
         span_id=_shr("span-9router"),
@@ -58,7 +58,7 @@ def run_lineage_demo(graph: ArtifactLineageGraph | None = None) -> ArtifactLinea
     # 2. Agent writes 3 vault notes from the LLM output
     for i, note in enumerate(["ideas.md", "tasks.md", "contacts.md"]):
         g.record(
-            agent_id="hermes-brain-capture",
+            agent_id="agent-lineage-test",
             artifact=f"vault://obsidian/{note}",
             trace_id=trace_id,
             span_id=_shr(f"span-note-{i}"),
@@ -69,7 +69,7 @@ def run_lineage_demo(graph: ArtifactLineageGraph | None = None) -> ArtifactLinea
 
     # 3. Agent edits a DB row (contacts table)
     g.record(
-        agent_id="hermes-brain-capture",
+        agent_id="agent-lineage-test",
         artifact="db:contacts.user_id=42",
         trace_id=trace_id,
         span_id=_shr("span-db-update"),
@@ -80,7 +80,7 @@ def run_lineage_demo(graph: ArtifactLineageGraph | None = None) -> ArtifactLinea
 
     # 4. Agent calls an external API (enrichment)
     g.record(
-        agent_id="hermes-brain-capture",
+        agent_id="agent-lineage-test",
         artifact="https://api.enrichment.dev/v1/lookup",
         trace_id=trace_id,
         span_id=_shr("span-api"),
@@ -92,7 +92,7 @@ def run_lineage_demo(graph: ArtifactLineageGraph | None = None) -> ArtifactLinea
 
     # Second agent touches one of the same notes — shows cross-agent lineage
     g.record(
-        agent_id="hermes-daily-briefing",
+        agent_id="agent-monitor-v1",
         artifact="vault://obsidian/tasks.md",
         trace_id=_shr("daily-briefing-run-001"),
         span_id=_shr("span-briefing-1"),
@@ -123,9 +123,9 @@ def main() -> None:
     # We emit 1 span per touch to demonstrate the OTLP export path.
     try:
         emit_artifact_touched_span(
-            "hermes-brain-capture",
+            "agent-lineage-test",
             "vault://obsidian/ideas.md",
-            trace_id=_shr("brain-capture-run-001"),
+            trace_id=_shr("lineage-run-001"),
             action="written",
         )
     except Exception:
@@ -134,7 +134,7 @@ def main() -> None:
     g = run_lineage_demo(graph)
 
     if args.json:
-        events = g.effects_of("hermes-brain-capture")
+        events = g.effects_of("agent-lineage-test")
         out = [
             {
                 "agent_id": e.agent_id,
@@ -157,15 +157,15 @@ def main() -> None:
         print("║         AgentLineage — what my agent *caused*               ║")
         print("╚══════════════════════════════════════════════════════════════╝\n")
 
-        print("Agent: hermes-brain-capture  (trace: brain-capture-run-001)\n")
-        events = g.effects_of("hermes-brain-capture")
+        print("Agent: agent-lineage-test  (trace: lineage-run-001)\n")
+        events = g.effects_of("agent-lineage-test")
         total_cost = sum(e.cost_usd for e in events)
         print(f"  Total artifacts touched: {len(events)}")
         print(f"  Total cost:             ${total_cost:.4f}")
         print()
         print("  Lineage graph:")
         print("  ┌─────────────────────┐    ┌────────────────────┐    ┌───────────────────┐")
-        print("  │ hermes-brain-capture│───▷│ 9router:gpt-4o-mini│───▷│ vault://obsidian/ │")
+        print("  │ agent-lineage-test│───▷│ 9router:gpt-4o-mini│───▷│ vault://obsidian/ │")
         print("  │  (agent)            │    │  ($0.0021)         │    │  ideas.md          │")
         print("  └──────────┬──────────┘    └────────────────────┘    │  tasks.md          │")
         print("             │                                         │  contacts.md       │")
