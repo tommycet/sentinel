@@ -1,0 +1,19 @@
+Overview of Sentinel — a closed-loop agent runaway detection system. Here on the landing page: the circuit diagram showing the full signal path from agent to lineage, revocation, and OTP export. Built for the SigNoz Hackathon.
+
+Wait for the narration to complete. The video scrolls itself.
+
+Now the AgentLineage dashboard. This is what makes Sentinel win. Running the agent lineage demo. We see the full output: six artifacts touched, total cost two point nine cents. The lineage graph shows the agent calling a router, writing to an Obsidian vault, editing database contacts, and calling an enrichment API. Every artifact has a trace ID linking it back to SigNoz.
+
+The artifact detail table shows every read, write, edit, and call. The trace timeline maps each event with microsecond precision. The cost breakdown shows tokens at two point one cents and the external API at point eight cents. The DOT graph gives a visual dependency map.
+
+Scrolling further: here is cross-agent contamination. The shared artifact is a database row. Agent lineage test wrote it. Agent monitor version one read it. Risk: high. This is the Sentinel differentiator. No other observability tool can trace cross-agent effects because they lack SigNoz's unified store. Langfuse, Phoenix, Breadcrumb — structurally impossible.
+
+Now the live server. Starting Sentinel on port 8095 with the dry-run revoker. It is listening, ready. Step one: health check. Status ok. Step two: sending a real HMAC-signed alert. The agent checkout agent seven made fourteen repetitive payment calls. The HMAC SHA-256 signature is verified. The incident is quarantined. The credential is revoked.
+
+Step three: querying agent lineage through the real API. Three artifacts traced: a vault read, a database mutation, a Stripe API call. Cross-agent contamination detected: checkout agent seven to inventory agent three. Risk level high.
+
+Step four: running the security test suite. One hundred and two tests pass. Fifteen verified fixes including body-size bypass guard, HMAC replay protection, TOCTOU prevention, constant-time comparison, and credential hash truncation.
+
+Step five: releasing after review. Full audit trail preserved. Credential restored. The entire lifecycle from quarantine to lineage to release is complete.
+
+Sentinel works globally. Any agent framework, any LLM provider. Nine Router, Groq, OpenRouter. No vendor lock-in. GitHub at forward slash tommycet forward slash Sentinel.
